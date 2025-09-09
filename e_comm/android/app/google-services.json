@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "453261302664",
+    "project_id": "sundergarments-a564f",
+    "storage_bucket": "sundergarments-a564f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453261302664:android:3a40a0247f11eb1ae7783d",
+        "android_client_info": {
+          "package_name": "com.example.e_comm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3yHgOsoD89un4qoC8jkC0kv7i4VFZ7GM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
