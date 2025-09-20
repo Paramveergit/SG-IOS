@@ -1,10 +1,12 @@
 // ignore_for_file: file_names, prefer_const_constructors, avoid_unnecessary_containers, prefer_const_literals_to_create_immutables
 
+import 'package:e_comm/controllers/apple-sign-in-controller.dart';
 import 'package:e_comm/controllers/google-sign-in-controller.dart';
 import 'package:e_comm/screens/auth-ui/sign-in-screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lottie/lottie.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../utils/app-constant.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -12,6 +14,8 @@ class WelcomeScreen extends StatelessWidget {
 
   final GoogleSignInController _googleSignInController =
       Get.put(GoogleSignInController());
+  final AppleSignInController _appleSignInController =
+      Get.put(AppleSignInController());
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +73,21 @@ class WelcomeScreen extends StatelessWidget {
                       _googleSignInController.signInWithGoogle();
                     },
                   ),
+                ),
+              ),
+              SizedBox(
+                height: Get.height / 50,
+              ),
+              // Apple Sign In Button
+              SizedBox(
+                width: Get.width / 1.2,
+                height: Get.height / 12,
+                child: SignInWithAppleButton(
+                  onPressed: () {
+                    _appleSignInController.signInWithApple();
+                  },
+                  style: SignInWithAppleButtonStyle.black,
+                  borderRadius: BorderRadius.circular(20.0),
                 ),
               ),
               SizedBox(

@@ -1,0 +1,182 @@
+===============================================================================
+APPLE SIGN IN TROUBLESHOOTING & FIX GUIDE
+===============================================================================
+
+ISSUE: Apple Sign In failing with Firebase Auth errors
+DATE: September 9, 2025
+
+===============================================================================
+CURRENT ERRORS IDENTIFIED:
+===============================================================================
+
+1. "The identity provider configuration is not found"
+   → Apple Sign In not configured in Firebase Console
+
+2. "Authorization failed: Error Domain=AKAuthenticationError Code=-7022"
+   → Apple Sign In capability not enabled in Xcode
+
+3. "no valid aps-environment entitlement string found"
+   → Push notification entitlements missing
+
+===============================================================================
+SOLUTION STEPS:
+===============================================================================
+
+STEP 1: CONFIGURE FIREBASE CONSOLE (CRITICAL)
+--------------------------------------------------
+
+1. Go to https://console.firebase.google.com/
+2. Select your project: "sundergarments-a564f"
+3. Go to Authentication → Sign-in method
+4. Find "Apple" in the provider list
+5. Click "Enable"
+6. Configure:
+   - Service ID: com.example.eComm
+   - Apple Team ID: [Your Apple Developer Team ID]
+   - Key ID: [Your Apple private key ID]
+   - Private Key: [Upload your .p8 file]
+7. Click "Save"
+
+STEP 2: XCODE CAPABILITIES SETUP (CRITICAL)
+--------------------------------------------------
+
+1. Open Xcode:
+   cd /Users/prarthanagarwal/Downloads/Dev-Baazi/SG-IOS/e_comm/ios
+   open Runner.xcworkspace
+
+2. Select Runner project in navigator
+3. Select Runner target
+4. Go to "Signing & Capabilities" tab
+5. Click "+" button to add capabilities:
+
+   a) Add "Sign In with Apple"
+      - Should automatically detect the entitlement
+
+   b) Add "Push Notifications" (optional, for Firebase messaging)
+
+   c) Add "Background Modes" if needed
+
+6. Verify Team is selected (not "None")
+
+STEP 3: CLEAN BUILD & TEST
+--------------------------------------------------
+
+1. Clean Xcode:
+   - Product → Clean Build Folder (⇧⌘K)
+   - Or: rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+2. Clean Flutter:
+   cd /Users/prarthanagarwal/Downloads/Dev-Baazi/SG-IOS/e_comm
+   flutter clean
+   flutter pub get
+
+3. Rebuild iOS:
+   cd ios && pod install
+   cd ..
+   flutter build ios --debug --simulator
+
+STEP 4: ALTERNATIVE TESTING METHODS
+--------------------------------------------------
+
+METHOD A - SIMULATOR TESTING:
+flutter run --debug -d "iPhone 15 Pro"
+
+METHOD B - PHYSICAL DEVICE:
+1. Connect iOS device
+2. Trust computer on device
+3. flutter run --debug -d "<device_id>"
+
+METHOD C - XCODE DIRECT:
+1. Open Runner.xcworkspace in Xcode
+2. Select device/simulator
+3. Click Play button (▶️)
+
+===============================================================================
+ADDITIONAL FIXES APPLIED:
+===============================================================================
+
+✅ Added comprehensive entitlements (Runner.entitlements)
+✅ Improved error handling in Apple Sign In controller
+✅ Added push notification entitlements
+✅ Added associated domains for Firebase
+
+===============================================================================
+FIREBASE APPLE SIGN IN REQUIREMENTS:
+===============================================================================
+
+REQUIRED FOR APPLE SIGN IN:
+- Apple Developer Program membership ($99/year)
+- Apple Sign In capability enabled in Xcode
+- Firebase Apple provider configured
+- Valid provisioning profile
+- Proper app identifiers
+
+===============================================================================
+TESTING CHECKLIST:
+===============================================================================
+
+□ Firebase Console: Apple Sign In enabled
+□ Xcode: Sign In with Apple capability added
+□ Xcode: Valid development team selected
+□ Xcode: Bundle ID matches: com.example.eComm
+□ Device: Running iOS 13.0 or later
+□ Simulator: iOS 13.0+ simulator selected
+
+===============================================================================
+EXPECTED BEHAVIOR AFTER FIXES:
+===============================================================================
+
+SUCCESSFUL APPLE SIGN IN:
+1. User taps Apple Sign In button
+2. Apple's native UI appears
+3. User authenticates with Face ID/Touch ID
+4. Firebase user created successfully
+5. User redirected to main screen
+6. No more "identity provider configuration" errors
+
+===============================================================================
+IF ISSUES PERSIST:
+===============================================================================
+
+1. CHECK FIREBASE CONFIGURATION:
+   - Visit Firebase Console → Authentication → Sign-in method
+   - Verify Apple provider is enabled
+   - Check Service ID matches bundle ID
+
+2. VERIFY XCODE SETUP:
+   - Open Runner.xcworkspace (not .xcodeproj)
+   - Check Signing & Capabilities tab
+   - Verify Sign In with Apple capability is added
+   - Confirm valid development team is selected
+
+3. CLEAN AND REBUILD:
+   flutter clean
+   cd ios && rm -rf Pods/ && pod install
+   cd ..
+   flutter build ios --debug
+
+4. CHECK DEVICE COMPATIBILITY:
+   - iOS 13.0+ required for Apple Sign In
+   - Physical device preferred over simulator for testing
+
+===============================================================================
+APPLE SIGN IN DEVELOPMENT TEAM REQUIREMENTS:
+===============================================================================
+
+FOR DEVELOPMENT TESTING:
+- Personal Apple ID (free)
+- Xcode automatic provisioning
+- No paid developer program required for basic testing
+
+FOR PRODUCTION/APP STORE:
+- Apple Developer Program ($99/year)
+- Explicit App ID
+- Distribution provisioning profile
+- Valid signing certificates
+
+===============================================================================
+END OF TROUBLESHOOTING GUIDE
+===============================================================================
+
+Last Updated: September 9, 2025
+For Sunder Garments E-commerce App

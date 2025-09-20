@@ -1,0 +1,341 @@
+===============================================================================
+FLUTTER iOS BUILD & TEST GUIDE - SUNDER GARMENTS APP
+===============================================================================
+
+CREATED: September 9, 2025
+PROJECT: e_comm (Flutter E-commerce App)
+PLATFORM: iOS (Xcode Testing)
+INSTALLATION METHOD: Homebrew (Recommended)
+
+===============================================================================
+HOMEBREW INSTALLATION & SETUP
+===============================================================================
+
+1. Install Homebrew (if not already installed):
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+2. Add Homebrew to your PATH (add to ~/.zshrc or ~/.bash_profile):
+   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zshrc
+   source ~/.zshrc
+
+3. Verify Homebrew installation:
+   brew --version
+
+===============================================================================
+PREREQUISITES CHECKLIST
+===============================================================================
+
+[ ] Xcode 15.0 or later installed
+[ ] iOS Simulator or physical iOS device
+[ ] Apple Developer Account (for device testing)
+[ ] Flutter SDK installed via Homebrew
+[ ] CocoaPods installed via Homebrew
+[ ] Homebrew installed and updated
+
+===============================================================================
+STEP 1: INSTALL FLUTTER & DEPENDENCIES VIA HOMEBREW
+===============================================================================
+
+1. Update Homebrew:
+   brew update
+
+2. Install Flutter:
+   brew install flutter
+
+3. Install CocoaPods (iOS dependency manager):
+   brew install cocoapods
+
+4. Install additional iOS tools:
+   brew install ios-deploy
+   brew install libimobiledevice
+
+5. Verify installations:
+   flutter --version
+   pod --version
+   ios-deploy --version
+
+===============================================================================
+STEP 2: VERIFY FLUTTER ENVIRONMENT
+===============================================================================
+
+1. Open Terminal and navigate to project root:
+   cd /Users/prarthanagarwal/Downloads/Dev-Baazi/SG-IOS/e_comm
+
+2. Check Flutter installation:
+   flutter --version
+
+3. Verify Flutter doctor status:
+   flutter doctor
+
+4. Ensure iOS toolchain is available:
+   flutter doctor --ios
+
+5. Update Flutter (if needed):
+   flutter upgrade
+
+===============================================================================
+STEP 3: INSTALL PROJECT DEPENDENCIES
+===============================================================================
+
+1. Install Flutter dependencies:
+   flutter pub get
+
+2. Navigate to iOS directory:
+   cd ios
+
+3. Install CocoaPods dependencies:
+   pod install
+
+   OR (if issues occur):
+   pod install --repo-update
+   pod update
+
+===============================================================================
+STEP 4: OPEN PROJECT IN XCODE
+===============================================================================
+
+METHOD 1 - Direct Xcode Open:
+1. Open Xcode application
+2. File → Open
+3. Navigate to: e_comm/ios/Runner.xcworkspace
+4. Click "Open"
+
+METHOD 2 - Terminal Open:
+1. From project root, run:
+   open ios/Runner.xcworkspace
+
+===============================================================================
+STEP 5: CONFIGURE XCODE PROJECT
+===============================================================================
+
+1. In Xcode, select Runner project in left sidebar
+2. Select Runner target
+3. Go to "Signing & Capabilities" tab
+4. For Development:
+   - Select your Apple Developer account
+   - Choose a Team
+   - Set Bundle Identifier: com.example.eComm
+
+5. For Release (when ready):
+   - Set up Distribution certificate
+   - Configure App Store provisioning profile
+
+===============================================================================
+STEP 6: SELECT BUILD TARGET
+===============================================================================
+
+1. At top of Xcode window, click device/simulator dropdown
+2. Choose from options:
+   - iPhone Simulator (various models)
+   - iPad Simulator (various models)
+   - Physical iOS device (if connected)
+
+RECOMMENDED: iPhone 15 Pro (iOS 17.0+) for latest compatibility
+
+===============================================================================
+STEP 7: BUILD AND RUN THE APP
+===============================================================================
+
+METHOD 1 - Xcode Interface:
+1. Click the "Play" button (▶️) in Xcode toolbar
+2. Or: Product → Run (⌘R)
+3. Wait for build to complete
+4. App will launch on selected simulator/device
+
+METHOD 2 - Terminal (Flutter CLI):
+1. From project root:
+   flutter run --debug
+   OR for specific device:
+   flutter run --debug -d "iPhone 15 Pro"
+
+===============================================================================
+STEP 8: MONITOR BUILD PROCESS
+===============================================================================
+
+Watch Xcode for:
+- ✅ Build succeeded messages
+- ⚠️  Warnings (non-critical)
+- ❌ Errors (need fixing)
+
+Check Console (View → Debug Area → Show Debug Area):
+- Flutter logs
+- App startup messages
+- Network requests
+- Error messages
+
+===============================================================================
+STEP 9: TEST APP FUNCTIONALITY
+===============================================================================
+
+TEST THESE FEATURES:
+□ App launches successfully
+□ Firebase authentication works
+□ Google Sign-In functions
+□ Product browsing works
+□ Cart functionality works
+□ Navigation between screens
+□ Network connectivity
+□ Push notifications (if implemented)
+
+===============================================================================
+TROUBLESHOOTING COMMON ISSUES
+===============================================================================
+
+ISSUE 1: "Flutter SDK not found"
+SOLUTION:
+- flutter config --android-studio-dir /Applications/Android\ Studio.app
+- flutter config --android-sdk /Users/[username]/Library/Android/sdk
+- brew reinstall flutter
+- flutter doctor --android-licenses
+
+ISSUE 2: "CocoaPods not installed"
+SOLUTION:
+- brew install cocoapods
+- pod setup
+- brew link --overwrite cocoapods
+
+ISSUE 3: "Homebrew installation issues"
+SOLUTION:
+- /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+- echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zshrc
+- source ~/.zshrc
+- brew doctor
+
+ISSUE 4: "No devices available"
+SOLUTION:
+- Open Xcode → Window → Devices and Simulators
+- Download additional simulator runtimes
+- Connect physical device and trust computer
+- brew install ios-deploy libimobiledevice
+
+ISSUE 5: "Signing issues"
+SOLUTION:
+- Xcode → Preferences → Accounts → Add Apple ID
+- Product → Clean Build Folder (⇧⌘K)
+- Product → Build (⌘B)
+- flutter clean && flutter pub get
+
+ISSUE 6: "Firebase configuration error"
+SOLUTION:
+- Verify GoogleService-Info.plist is in ios/Runner/
+- Check bundle identifier matches Firebase console
+- flutter clean && flutter pub get
+- brew install firebase-cli (if needed)
+
+ISSUE 7: "Xcode Command Line Tools missing"
+SOLUTION:
+- xcode-select --install
+- sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+- brew reinstall flutter
+
+===============================================================================
+BUILD CONFIGURATIONS
+===============================================================================
+
+DEBUG BUILD:
+- flutter build ios --debug
+- For development and testing
+- Includes debug symbols
+- Hot reload enabled
+
+RELEASE BUILD:
+- flutter build ios --release
+- For App Store submission
+- Optimized and minified
+- Requires code signing
+
+PROFILE BUILD:
+- flutter build ios --profile
+- Performance analysis
+- Debug symbols included
+
+===============================================================================
+DEPLOYMENT CHECKLIST
+===============================================================================
+
+PRE-LAUNCH CHECKS:
+□ Test on multiple iOS versions (14.0+)
+□ Test on different device sizes
+□ Verify all Firebase services work
+□ Check network permissions
+□ Test offline functionality
+□ Verify app icons and launch screens
+
+APP STORE PREPARATION:
+□ Create App Store Connect app record
+□ Prepare app icons and screenshots
+□ Write app description and keywords
+□ Set pricing and availability
+□ Configure in-app purchases (if needed)
+
+===============================================================================
+USEFUL COMMANDS
+===============================================================================
+
+# HOMEBREW MAINTENANCE
+brew update                    # Update Homebrew
+brew upgrade                   # Upgrade all packages
+brew cleanup                   # Clean up old versions
+brew doctor                    # Check system for issues
+
+# FLUTTER MANAGEMENT (via Homebrew)
+brew install flutter           # Install Flutter
+brew upgrade flutter          # Upgrade Flutter
+brew uninstall flutter        # Remove Flutter
+flutter --version             # Check Flutter version
+
+# PROJECT CLEANUP & REBUILD
+flutter clean                  # Clean Flutter build files
+flutter pub get               # Install Flutter dependencies
+cd ios && pod install         # Install iOS dependencies
+cd ios && pod update          # Update iOS dependencies
+
+# BUILD SPECIFIC CONFIGURATIONS
+flutter build ios --debug     # Debug build
+flutter build ios --release   # Release build (signed)
+flutter build ios --profile   # Profile build
+
+# RUN WITH VERBOSE LOGGING
+flutter run --debug --verbose # Run with detailed logs
+flutter run --debug -v        # Alternative verbose flag
+
+# SIMULATOR MANAGEMENT
+xcrun simctl list devices     # List all simulators
+xcrun simctl boot <device_id> # Boot specific simulator
+xcrun simctl shutdown all     # Shutdown all simulators
+
+# IOS TOOLS MANAGEMENT
+brew install ios-deploy       # Install iOS deployment tool
+brew install libimobiledevice # Install iOS device management
+brew install firebase-cli     # Install Firebase CLI
+
+===============================================================================
+CONTACT & SUPPORT
+===============================================================================
+
+If you encounter issues:
+1. Check Flutter doctor: flutter doctor -v
+2. Check Homebrew: brew doctor
+3. Clean project: flutter clean && flutter pub get
+4. Reset iOS: cd ios && rm -rf Pods/ && pod install
+5. Update Homebrew packages: brew update && brew upgrade
+6. Check Xcode Command Line Tools: xcode-select -p
+7. Check Xcode logs for detailed error messages
+
+HOMEBREW TROUBLESHOOTING:
+- brew config                    # Show Homebrew configuration
+- brew list                      # List installed packages
+- brew outdated                  # Check for outdated packages
+- brew install --force flutter   # Force reinstall Flutter
+
+===============================================================================
+END OF GUIDE
+===============================================================================
+
+Last Updated: September 9, 2025
+For Sunder Garments E-commerce App
+Installation Method: Homebrew (Recommended)
+Flutter Version: 3.5.4+
+Xcode Version: 15.0+
+iOS Target: 13.0+
+Homebrew Version: Latest

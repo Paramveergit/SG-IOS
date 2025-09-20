@@ -409,7 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await FirebaseAuth.instance.signOut();
-              Get.offAll(() => const WelcomeScreen());
+              Get.offAll(() => WelcomeScreen());
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
