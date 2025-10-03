@@ -60,20 +60,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBp-Y-Kx1rQrUXhy89wdCIN9_8fceqJ6EE',
-    appId: '1:453261302664:ios:c23aca15af33aa54e7783d',
+    appId: '1:453261302664:ios:23f9b42ed8c5dc71e7783d',
     messagingSenderId: '453261302664',
     projectId: 'sundergarments-a564f',
     storageBucket: 'sundergarments-a564f.firebasestorage.app',
-    iosBundleId: 'com.example.eComm',
+    iosBundleId: 'com.sundergarments.ecomm',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBp-Y-Kx1rQrUXhy89wdCIN9_8fceqJ6EE',
-    appId: '1:453261302664:ios:c23aca15af33aa54e7783d',
+    appId: '1:453261302664:ios:23f9b42ed8c5dc71e7783d',
     messagingSenderId: '453261302664',
     projectId: 'sundergarments-a564f',
     storageBucket: 'sundergarments-a564f.firebasestorage.app',
-    iosBundleId: 'com.example.eComm',
+    iosBundleId: 'com.sundergarments.ecomm',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
