@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app-constant.dart';
 import '../../widgets/banner-widget.dart';
 import '../../widgets/welcome-popup-widget.dart';
@@ -433,21 +434,11 @@ class _NewMainScreenState extends State<NewMainScreen> {
             // Support Options
             _buildSupportOption(
               icon: Icons.phone,
-              title: 'Call Us',
+              title: 'Call Us/WhatsApp',
               subtitle: '+91 9830464031',
               onTap: () {
                 Get.back();
-                // Add phone call functionality
-              },
-            ),
-            
-            _buildSupportOption(
-              icon: Icons.message,
-              title: 'WhatsApp',
-              subtitle: 'Chat with us',
-              onTap: () {
-                Get.back();
-                // Add WhatsApp functionality
+                _showContactOptions();
               },
             ),
             
@@ -490,6 +481,71 @@ class _NewMainScreenState extends State<NewMainScreen> {
       title: Text(title),
       subtitle: Text(subtitle),
       onTap: onTap,
+    );
+  }
+
+  void _showContactOptions() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Contact Options'),
+          content: const Text('How would you like to contact us?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _makePhoneCall();
+              },
+              child: const Text('Call'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _openWhatsApp();
+              },
+              child: const Text('WhatsApp'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _makePhoneCall() async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: '+919830464031');
+    if (await canLaunchUrl(phoneUri)) {
+      await launchUrl(phoneUri);
+    } else {
+      _showErrorSnackBar('Could not make phone call');
+    }
+  }
+
+  Future<void> _openWhatsApp() async {
+    final String phoneNumber = '+919830464031';
+    final String message = 'Hello Sunder Garments, I need support.';
+    final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}');
+    
+    if (await canLaunchUrl(whatsappUri)) {
+      await launchUrl(whatsappUri);
+    } else {
+      _showErrorSnackBar('Could not open WhatsApp');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    Get.snackbar(
+      'Error',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
     );
   }
 }
