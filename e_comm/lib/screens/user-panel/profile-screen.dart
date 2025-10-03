@@ -2,11 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../../utils/app-constant.dart';
 import '../auth-ui/welcome-screen.dart';
 import 'all-orders-screen.dart';
+import '../../services/delete-account-service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -151,27 +151,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'View order history',
             onTap: () => Get.to(() => const AllOrdersScreen()),
           ),
-          _buildDivider(),
-          _buildProfileOption(
-            icon: Icons.location_on_outlined,
-            title: 'Delivery Address',
-            subtitle: 'Manage addresses',
-            onTap: () => _showComingSoon('Delivery Address'),
-          ),
-          _buildDivider(),
-          _buildProfileOption(
-            icon: Icons.payment_outlined,
-            title: 'Payment Methods',
-            subtitle: 'Manage payment options',
-            onTap: () => _showComingSoon('Payment Methods'),
-          ),
-          _buildDivider(),
-          _buildProfileOption(
-            icon: Icons.notifications_outlined,
-            title: 'Notifications',
-            subtitle: 'Manage notification preferences',
-            onTap: () => _showComingSoon('Notifications'),
-          ),
         ],
       ),
     );
@@ -251,18 +230,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Sign out of your account',
             onTap: () => _showLogoutDialog(),
           ),
+          _buildDivider(),
+          _buildProfileOption(
+            icon: Icons.delete_forever_outlined,
+            title: 'Delete Account',
+            subtitle: 'Permanently delete your account',
+            onTap: () => _showDeleteAccountDialog(),
+          ),
         ],
       ),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    Get.snackbar(
-      'Coming Soon',
-      '$feature feature will be available soon!',
-      backgroundColor: AppConstant.appMainColor,
-      colorText: AppConstant.appTextColor,
-      duration: const Duration(seconds: 2),
     );
   }
 
@@ -420,5 +396,183 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red.shade700,
+              size: 28.0,
+            ),
+            const SizedBox(width: 8.0),
+            const Text('Delete Account'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Are you sure you want to delete your account?',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16.0,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            const Text(
+              'This action is permanent and cannot be undone. All your data will be deleted:',
+            ),
+            const SizedBox(height: 8.0),
+            _buildDeleteInfoItem('• Your profile information'),
+            _buildDeleteInfoItem('• Your order history'),
+            _buildDeleteInfoItem('• Your shopping cart'),
+            _buildDeleteInfoItem('• All saved preferences'),
+            const SizedBox(height: 16.0),
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.red.shade700,
+                    size: 20.0,
+                  ),
+                  const SizedBox(width: 8.0),
+                  Expanded(
+                    child: Text(
+                      'You will need to create a new account to use the app again.',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 12.0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showFinalDeleteConfirmation();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeleteInfoItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.grey.shade700,
+          fontSize: 14.0,
+        ),
+      ),
+    );
+  }
+
+  void _showFinalDeleteConfirmation() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Final Confirmation',
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'This is your last chance to cancel.',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16.0,
+              ),
+            ),
+            SizedBox(height: 12.0),
+            Text(
+              'Once you confirm, your account and all associated data will be permanently deleted.',
+            ),
+            SizedBox(height: 12.0),
+            Text(
+              'Do you want to proceed?',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontSize: 16.0),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performAccountDeletion();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 12.0,
+              ),
+            ),
+            child: const Text(
+              'Delete My Account',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performAccountDeletion() async {
+    final bool success = await DeleteAccountService.deleteUserAccount();
+    
+    if (success) {
+      // Navigate to welcome screen after successful deletion
+      Get.offAll(() => WelcomeScreen());
+    }
+    // If deletion fails, user stays on the same screen
+    // Error message is already shown by the service
   }
 }
