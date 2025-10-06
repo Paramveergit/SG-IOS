@@ -38,28 +38,37 @@ class NavigationService extends GetxController {
   
   // Execute pending actions after successful login
   Future<void> executePendingActions() async {
-    // Handle pending add-to-cart first (higher priority)
-    if (_pendingAddToCartProduct != null) {
-      final product = _pendingAddToCartProduct!;
-      clearPendingActions();
+    try {
+      // Handle pending add-to-cart first (higher priority)
+      if (_pendingAddToCartProduct != null) {
+        final product = _pendingAddToCartProduct!;
+        clearPendingActions();
+        
+        // Execute add-to-cart and return to previous screen
+        await _executeAddToCart(product);
+        return;
+      }
       
-      // Execute add-to-cart and stay on current screen
-      await _executeAddToCart(product);
-      return;
-    }
-    
-    // Handle pending navigation
-    if (_pendingScreen != null) {
-      final screen = _pendingScreen!;
-      clearPendingActions();
+      // Handle pending navigation
+      if (_pendingScreen != null) {
+        final screen = _pendingScreen!;
+        clearPendingActions();
+        
+        // Use Get.offAll() to completely clear the navigation stack
+        // This prevents users from getting stuck on the login screen
+        // and ensures they land directly on the target screen
+        Get.offAll(() => screen);
+        return;
+      }
       
-      Get.off(() => screen);
-      return;
+      // No pending actions, go to main screen
+      clearPendingActions();
+      Get.offAll(() => const NewMainScreen());
+    } catch (e) {
+      // Fallback: clear any pending actions and go to main screen
+      clearPendingActions();
+      Get.offAll(() => const NewMainScreen());
     }
-    
-    // No pending actions, go to main screen
-    clearPendingActions();
-    Get.offAll(() => const NewMainScreen());
   }
   
   // Execute add-to-cart action
@@ -86,6 +95,10 @@ class NavigationService extends GetxController {
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
+      
+      // Return to the previous screen (product page) after successful add-to-cart
+      // This fixes the issue where users get stuck on the login screen
+      Get.back();
     } catch (e) {
       Get.snackbar(
         'Error',
