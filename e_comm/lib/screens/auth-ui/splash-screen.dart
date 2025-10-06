@@ -41,7 +41,9 @@ class _SplashScreenState extends State<SplashScreen> {
         Get.offAll(() => NewMainScreen());
       }
     } else {
-      Get.offAll(() => WelcomeScreen());
+      // Allow guest access to main screen - users can browse without authentication
+      // Authentication will be required only for account-based features (cart, profile, checkout)
+      Get.offAll(() => NewMainScreen());
     }
   }
 

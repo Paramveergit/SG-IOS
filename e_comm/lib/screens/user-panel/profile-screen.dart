@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app-constant.dart';
+import '../../utils/auth-guard.dart';
 import '../auth-ui/welcome-screen.dart';
 import 'all-orders-screen.dart';
 import '../../services/delete-account-service.dart';
@@ -20,7 +21,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
 
   @override
+  void initState() {
+    super.initState();
+    // Check authentication when screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!AuthGuard.requireAuth(returnScreen: const ProfileScreen())) {
+        return; // User will be redirected to login
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Double-check authentication in build method
+    if (!AuthGuard.isAuthenticated()) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(

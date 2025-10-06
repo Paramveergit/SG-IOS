@@ -3,6 +3,7 @@ import 'package:e_comm/screens/auth-ui/splash-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:e_comm/theme/app_theme.dart';
 import 'package:e_comm/theme/theme_bridge.dart';
+import 'package:e_comm/services/navigation-service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
@@ -22,6 +23,9 @@ void main() async {
   
   // Initialize theme bridge
   ThemeBridge.init();
+  
+  // Initialize NavigationService for handling authentication redirects
+  Get.put(NavigationService());
   
   runApp(const MyApp());
 }

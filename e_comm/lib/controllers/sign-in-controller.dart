@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/utils/app-constant.dart';
+import 'package:e_comm/services/navigation-service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:get/get.dart';
@@ -23,6 +24,10 @@ class SignInController extends GetxController {
       );
 
       EasyLoading.dismiss();
+      
+      // Execute any pending actions after successful login
+      await NavigationService.instance.executePendingActions();
+      
       return userCredential;
     } on FirebaseAuthException catch (e) {
       EasyLoading.dismiss();

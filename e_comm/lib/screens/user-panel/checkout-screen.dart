@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/models/cart-model.dart';
 import 'package:e_comm/utils/app-constant.dart';
+import 'package:e_comm/utils/auth-guard.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,26 @@ class _CheckOutScreenState extends State<CheckOutScreen> {
   String? address;
 
   @override
+  void initState() {
+    super.initState();
+    // Check authentication when screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!AuthGuard.requireAuth(returnScreen: const CheckOutScreen())) {
+        return; // User will be redirected to login
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Double-check authentication in build method
+    if (!AuthGuard.isAuthenticated()) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         iconTheme: IconThemeData(

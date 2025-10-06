@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/models/product-model.dart';
 import 'package:e_comm/screens/user-panel/cart-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
+import 'package:e_comm/utils/auth-guard.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -211,10 +212,31 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         color: AppConstant.appTextColor),
                                   ),
                                   onPressed: () async {
-                                    // Get.to(() => SignInScreen());
+                                    // Use AuthGuard to check authentication and handle redirect
+                                    if (!AuthGuard.requireAuthForAddToCart(widget.productModel)) {
+                                      return; // User will be redirected to login, action will be executed after login
+                                    }
 
-                                    await checkProductExistence(uId: user!.uid);
-                                    await Get.to(() => CartScreen());
+                                    try {
+                                      await checkProductExistence(uId: user!.uid);
+                                      Get.snackbar(
+                                        'Success',
+                                        '${widget.productModel.productName} added to cart',
+                                        backgroundColor: Colors.green,
+                                        colorText: Colors.white,
+                                        duration: const Duration(seconds: 2),
+                                      );
+                                      // Optionally navigate to cart
+                                      // await Get.to(() => CartScreen());
+                                    } catch (e) {
+                                      Get.snackbar(
+                                        'Error',
+                                        'Failed to add item to cart',
+                                        backgroundColor: Colors.red,
+                                        colorText: Colors.white,
+                                        duration: const Duration(seconds: 2),
+                                      );
+                                    }
                                   },
                                 ),
                               ),

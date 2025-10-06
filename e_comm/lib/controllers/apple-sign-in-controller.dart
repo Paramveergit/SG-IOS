@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/controllers/get-device-token-controller.dart';
 import 'package:e_comm/models/user-model.dart';
 import 'package:e_comm/screens/user-panel/new-main-screen.dart';
+import 'package:e_comm/services/navigation-service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:get/get.dart';
@@ -87,7 +88,9 @@ class AppleSignInController extends GetxController {
             .set(userModel.toMap(), SetOptions(merge: true));
 
         EasyLoading.dismiss();
-        Get.offAll(() => const NewMainScreen());
+        
+        // Execute any pending actions after successful login
+        await NavigationService.instance.executePendingActions();
       }
     } catch (e) {
       EasyLoading.dismiss();

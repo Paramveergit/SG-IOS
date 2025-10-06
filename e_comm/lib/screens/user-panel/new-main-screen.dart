@@ -194,22 +194,25 @@ class _NewMainScreenState extends State<NewMainScreen> {
                 color: Colors.blue.shade50,
                 iconColor: Colors.blue,
                 onTap: () => Get.to(() => const EnhancedAllProductsScreen()),
+                requiresAuth: false,
               ),
               _buildNavigationCard(
                 icon: Icons.person_outline,
                 title: 'My Profile',
-                subtitle: 'Orders & settings',
+                subtitle: user != null ? 'Orders & settings' : 'Login required',
                 color: Colors.green.shade50,
                 iconColor: Colors.green,
                 onTap: () => Get.to(() => const ProfileScreen()),
+                requiresAuth: true,
               ),
               _buildNavigationCard(
                 icon: Icons.shopping_cart_outlined,
                 title: 'My Cart',
-                subtitle: 'Review your items',
+                subtitle: user != null ? 'Review your items' : 'Login required',
                 color: Colors.orange.shade50,
                 iconColor: Colors.orange,
                 onTap: () => Get.to(() => const cart_screen.CartScreen()),
+                requiresAuth: true,
               ),
               _buildNavigationCard(
                 icon: Icons.help_outline,
@@ -218,6 +221,7 @@ class _NewMainScreenState extends State<NewMainScreen> {
                 color: Colors.purple.shade50,
                 iconColor: Colors.purple,
                 onTap: () => _showSupportOptions(),
+                requiresAuth: false,
               ),
             ],
           ),
@@ -233,6 +237,7 @@ class _NewMainScreenState extends State<NewMainScreen> {
     required Color color,
     required Color iconColor,
     required VoidCallback onTap,
+    required bool requiresAuth,
   }) {
     return Material(
       color: Colors.transparent,
@@ -260,18 +265,40 @@ class _NewMainScreenState extends State<NewMainScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon
-              Container(
-                padding: const EdgeInsets.all(8.0),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 24.0,
-                ),
+              // Icon with auth indicator
+              Stack(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: iconColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: iconColor,
+                      size: 24.0,
+                    ),
+                  ),
+                  // Show lock icon for auth-required features when not logged in
+                  if (requiresAuth && user == null)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2.0),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock,
+                          color: Colors.white,
+                          size: 12.0,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               
               const SizedBox(height: 8.0),
@@ -328,24 +355,39 @@ class _NewMainScreenState extends State<NewMainScreen> {
       ),
       child: Column(
         children: [
-          // Logout Button
+          // Sign In / Logout Button
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showLogoutDialog(),
-              icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade50,
-                foregroundColor: Colors.red.shade700,
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                elevation: 0,
-                side: BorderSide(color: Colors.red.shade200),
-              ),
-            ),
+            child: user != null
+                ? ElevatedButton.icon(
+                    onPressed: () => _showLogoutDialog(),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Logout'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade50,
+                      foregroundColor: Colors.red.shade700,
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      elevation: 0,
+                      side: BorderSide(color: Colors.red.shade200),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: () => Get.to(() => WelcomeScreen()),
+                    icon: const Icon(Icons.login),
+                    label: const Text('Sign In'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstant.appMainColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      elevation: 2,
+                    ),
+                  ),
           ),
           
           const SizedBox(height: 16.0),

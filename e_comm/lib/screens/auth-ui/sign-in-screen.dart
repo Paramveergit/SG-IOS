@@ -6,6 +6,7 @@ import 'package:e_comm/screens/admin-panel/admin-main-screen.dart';
 import 'package:e_comm/screens/auth-ui/forget-password-screen.dart';
 import 'package:e_comm/screens/auth-ui/sign-up-screen.dart';
 import 'package:e_comm/screens/user-panel/new-main-screen.dart';
+import 'package:e_comm/services/navigation-service.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -164,7 +165,6 @@ class _SignInScreenState extends State<SignInScreen> {
                               );
                               Get.offAll(() => AdminMainScreen());
                             } else {
-                              Get.offAll(() => NewMainScreen());
                               Get.snackbar(
                                 "Success User Login",
                                 "login Successfully!",
@@ -172,6 +172,8 @@ class _SignInScreenState extends State<SignInScreen> {
                                 backgroundColor: AppConstant.appScendoryColor,
                                 colorText: AppConstant.appTextColor,
                               );
+                              // Navigation is handled by NavigationService in the sign-in controller
+                              // No need to navigate here as it's already handled
                             }
                           } else {
                             Get.snackbar(

@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../../utils/app-constant.dart';
+import '../../utils/auth-guard.dart';
 import '../../models/product-model.dart';
 import '../../models/cart-model.dart';
 import '../../models/categories-model.dart';
@@ -621,12 +622,17 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
 
 
   void _handleAddToCart(ProductModel product) async {
+    // Use AuthGuard to check authentication and handle redirect
+    if (!AuthGuard.requireAuthForAddToCart(product)) {
+      return; // User will be redirected to login, action will be executed after login
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         Get.snackbar(
           'Error',
-          'Please sign in to add items to cart',
+          'Authentication failed. Please try again.',
           backgroundColor: Colors.red,
           colorText: Colors.white,
           duration: const Duration(seconds: 2),
