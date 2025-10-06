@@ -27,16 +27,8 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // Categories that don't have products yet
-  final Set<String> emptyCategories = {
-    'SG-d33996c', // Boy's Bottomwear
-    'SG-c9dbc04', // Boy's Topwear
-    'SG-b4ca53f', // Girl's BottomWear
-    'SG-a6a6a05', // Girl's TopWear
-    'SG-5c2a4db', // Infant's Wear
-    'SG-3ad974f', // Women's Bottomwear
-    'SG-4fe40f2', // Women's Top
-  };
+  // Note: Removed hardcoded emptyCategories to allow dynamic product checking
+  // Categories will now show "Coming Soon" only when they genuinely have no products
 
   // Category name mapping for display
   final Map<String, String> categoryNameMapping = {
@@ -284,10 +276,8 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
   }
 
   Widget _buildProductsGrid() {
-    // Check if selected category is empty
-    if (selectedCategoryId != null && emptyCategories.contains(selectedCategoryId)) {
-      return _buildComingSoonState();
-    }
+    // Removed hardcoded empty category check - now uses dynamic product checking
+    // This allows categories to show products when they exist and "Coming Soon" only when genuinely empty
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -322,16 +312,24 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
         
         // Debug: Print all product categories when no filter is applied
         if (selectedCategoryId == null) {
+          print('📦 All products in database:');
           for (var doc in snapshot.data!.docs) {
             final productData = doc.data() as Map<String, dynamic>;
-            print('Product: ${productData['productName']} - Category: ${productData['categoryId']}');
+            print('  - ${productData['productName']} (Category: ${productData['categoryName']}, ID: ${productData['categoryId']})');
           }
+        } else {
+          print('🔍 Filtering for category ID: $selectedCategoryId');
         }
         
         final products = _filterProducts(snapshot.data!.docs);
         print('After filtering: ${products.length} products');
 
         if (products.isEmpty) {
+          // Show "Coming Soon" only when there are genuinely no products in the selected category
+          if (selectedCategoryId != null) {
+            return _buildComingSoonState();
+          }
+          
           return SimpleLoadingStates.emptyState(
             title: 'No Products Found',
             message: 'Try adjusting your search or filter',
@@ -473,16 +471,16 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
     print('    Product Category Name: $productCategoryName');
     print('    Product Name Lower: $productNameLower');
     
-    // Map category patterns for smart matching
+    // Enhanced category patterns for comprehensive matching
     final categoryPatterns = {
-      'bottomwear': ['bottomwear', 'bottom', 'pants', 'shorts', 'trousers', 'jeans'],
-      'topwear': ['topwear', 'top', 'shirt', 'tshirt', 'polo', 'vest'],
-      'innerwear': ['innerwear', 'inner', 'brief', 'underwear', 'vest'],
-      'boys': ['boy', 'boys', 'men', 'mens'],
-      'girls': ['girl', 'girls', 'women', 'womens'],
-      'mens': ['men', 'mens', 'boy', 'boys'],
-      'womens': ['women', 'womens', 'girl', 'girls'],
-      'infants': ['infant', 'infants', 'baby', 'babies'],
+      'bottomwear': ['bottomwear', 'bottom', 'pants', 'shorts', 'trousers', 'jeans', 'leggings', 'tights'],
+      'topwear': ['topwear', 'top', 'shirt', 'tshirt', 'polo', 'vest', 'blouse', 'tank', 'tee'],
+      'innerwear': ['innerwear', 'inner', 'brief', 'underwear', 'vest', 'bra', 'panties', 'lingerie'],
+      'boys': ['boy', 'boys', 'men', 'mens', 'male', 'guy'],
+      'girls': ['girl', 'girls', 'women', 'womens', 'female', 'lady'],
+      'mens': ['men', 'mens', 'boy', 'boys', 'male', 'guy'],
+      'womens': ['women', 'womens', 'girl', 'girls', 'female', 'lady'],
+      'infants': ['infant', 'infants', 'baby', 'babies', 'toddler', 'newborn', 'kids', 'child'],
     };
     
     // Check for exact category name matches
@@ -527,6 +525,22 @@ class _EnhancedAllProductsScreenState extends State<EnhancedAllProductsScreen> {
     if (selectedCategoryId == 'SG-a6a6a05') { // Girl's TopWear
       if (productCategoryId == 'SG-4fe40f2') { // Women's Top
         print('  ✅ Direct ID match: Girl\'s TopWear -> Women\'s Top');
+        return true;
+      }
+    }
+    
+    // Infant's Wear mapping - this was missing!
+    if (selectedCategoryId == 'SG-5c2a4db') { // Infant's Wear
+      // Check if product is actually in Infant's Wear category
+      if (productCategoryId == 'SG-5c2a4db') {
+        print('  ✅ Direct ID match: Infant\'s Wear -> Infant\'s Wear');
+        return true;
+      }
+      // Also check for products that might be categorized under other infant-related categories
+      if (productCategoryName.toLowerCase().contains('infant') || 
+          productCategoryName.toLowerCase().contains('baby') ||
+          productCategoryName.toLowerCase().contains('toddler')) {
+        print('  ✅ Smart match: Infant\'s Wear -> $productCategoryName');
         return true;
       }
     }
