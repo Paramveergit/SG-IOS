@@ -61,6 +61,8 @@
     	<key>NSAllowsArbitraryLoads</key>
     	<true/>
 	</dict>
+	<key>GIDClientID</key>
+	<string>453261302664-ht6iplbe0hku8b7pduk6p4tsojftfe66.apps.googleusercontent.com</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
 	<key>LSApplicationQueriesSchemes</key>
