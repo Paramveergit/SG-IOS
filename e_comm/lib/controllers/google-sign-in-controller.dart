@@ -11,7 +11,9 @@ import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleSignInController extends GetxController {
-  final GoogleSignIn googleSignIn = GoogleSignIn();
+  final GoogleSignIn googleSignIn = GoogleSignIn(
+    clientId: '453261302664-ht6iplbe0hku8b7pduk6p4tsojftfe66.apps.googleusercontent.com',
+  );
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> signInWithGoogle() async {
