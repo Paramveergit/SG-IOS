@@ -52,7 +52,7 @@
     		<string>Editor</string>
     		<key>CFBundleURLSchemes</key>
     		<array>
-      			<string>com.googleusercontent.apps.453261302664-ucg0csir2uop4v1ts665m1r1jh2t92ik</string>
+      			<string>com.googleusercontent.apps.453261302664-ht6iplbe0hku8b7pduk6p4tsojftfe66</string>
     		</array>
   		</dict>
 	</array>
@@ -68,7 +68,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
   		<string>google</string>
-  		<string>com.googleusercontent.apps.453261302664-ucg0csir2uop4v1ts665m1r1jh2t92ik</string>
+  		<string>com.googleusercontent.apps.453261302664-ht6iplbe0hku8b7pduk6p4tsojftfe66</string>
   		<string>googlechrome</string>
   		<string>googledrive</string>
   		<string>googlegmail</string>
