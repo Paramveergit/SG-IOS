@@ -30,19 +30,25 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> loggdin(BuildContext context) async {
-    if (user != null) {
-      final GetUserDataController getUserDataController =
-          Get.put(GetUserDataController());
-      var userData = await getUserDataController.getUserData(user!.uid);
+    try {
+      if (user != null) {
+        final GetUserDataController getUserDataController =
+            Get.put(GetUserDataController());
+        var userData = await getUserDataController.getUserData(user!.uid);
 
-      if (userData[0]['isAdmin'] == true) {
-        Get.offAll(() => AdminMainScreen());
+        if (userData.isNotEmpty && userData[0]['isAdmin'] == true) {
+          Get.offAll(() => AdminMainScreen());
+        } else {
+          Get.offAll(() => NewMainScreen());
+        }
       } else {
+        // Allow guest access to main screen - users can browse without authentication
+        // Authentication will be required only for account-based features (cart, profile, checkout)
         Get.offAll(() => NewMainScreen());
       }
-    } else {
-      // Allow guest access to main screen - users can browse without authentication
-      // Authentication will be required only for account-based features (cart, profile, checkout)
+    } catch (e) {
+      // Don't leave the user stuck on the splash screen forever if
+      // anything above fails - fall back to guest browsing.
       Get.offAll(() => NewMainScreen());
     }
   }
