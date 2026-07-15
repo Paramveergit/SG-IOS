@@ -65,27 +65,39 @@ class AppleSignInController extends GetxController {
           email = user.email!;
         }
 
-        UserModel userModel = UserModel(
-          uId: user.uid,
-          username: displayName.isNotEmpty ? displayName : 'Apple User',
-          email: email,
-          phone: user.phoneNumber ?? '',
-          userImg: user.photoURL ?? '',
-          userDeviceToken: getDeviceTokenController.deviceToken.toString(),
-          country: '',
-          userAddress: '',
-          street: '',
-          isAdmin: false,
-          isActive: true,
-          createdOn: DateTime.now(),
-          city: '',
-        );
+        final userDocRef =
+            FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final existingDoc = await userDocRef.get();
 
-        // Save user data to Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set(userModel.toMap(), SetOptions(merge: true));
+        if (existingDoc.exists) {
+          // CRITICAL: never overwrite an existing profile's isAdmin
+          // status or saved address/phone/city - same bug class found
+          // in the Google Sign-In flows. Only refresh what's safe to
+          // update on every sign-in.
+          await userDocRef.set({
+            'userDeviceToken': getDeviceTokenController.deviceToken.toString(),
+            if (displayName.isNotEmpty) 'username': displayName,
+            if (email.isNotEmpty) 'email': email,
+          }, SetOptions(merge: true));
+        } else {
+          UserModel userModel = UserModel(
+            uId: user.uid,
+            username: displayName.isNotEmpty ? displayName : 'Apple User',
+            email: email,
+            phone: user.phoneNumber ?? '',
+            userImg: user.photoURL ?? '',
+            userDeviceToken: getDeviceTokenController.deviceToken.toString(),
+            country: '',
+            userAddress: '',
+            street: '',
+            isAdmin: false,
+            isActive: true,
+            createdOn: DateTime.now(),
+            city: '',
+          );
+
+          await userDocRef.set(userModel.toMap());
+        }
 
         EasyLoading.dismiss();
         
