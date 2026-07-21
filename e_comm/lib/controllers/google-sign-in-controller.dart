@@ -11,8 +11,16 @@ import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleSignInController extends GetxController {
+  // FIX: this hardcoded clientId was a different OAuth client than the
+  // one the Android app resolves via google-services.json's default
+  // config. Signing into the same Google account through two different
+  // OAuth clients can make Firebase mint two different UIDs for what is,
+  // to the person, the same account - orders/profile data placed on one
+  // platform then silently invisible on the other. Removing the
+  // hardcoded clientId lets this pick up the correct client from
+  // GoogleService-Info.plist / Info.plist, matching Android's approach.
   final GoogleSignIn googleSignIn = GoogleSignIn(
-    clientId: '453261302664-ht6iplbe0hku8b7pduk6p4tsojftfe66.apps.googleusercontent.com',
+    scopes: ['email', 'profile'],
   );
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -20,6 +28,10 @@ class GoogleSignInController extends GetxController {
     final GetDeviceTokenController getDeviceTokenController =
         Get.put(GetDeviceTokenController());
     try {
+      // Clear any existing session so the account picker always appears
+      // and so a stale cached session can't mask which account is used.
+      await googleSignIn.signOut();
+
       final GoogleSignInAccount? googleSignInAccount =
           await googleSignIn.signIn();
 
