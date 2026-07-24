@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:e_comm/controllers/get-user-data-controller.dart';
 import 'package:e_comm/screens/admin-panel/admin-main-screen.dart';
-import 'package:e_comm/screens/auth-ui/welcome-screen.dart';
 import 'package:e_comm/screens/user-panel/new-main-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,7 +19,15 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  User? user = FirebaseAuth.instance.currentUser;
+  // FIX: this used to be `User? user = FirebaseAuth.instance.currentUser;`
+  // - a synchronous snapshot captured the instant this widget was
+  // created, before Firebase had a chance to restore the persisted
+  // session from local storage. That's the same root cause behind
+  // "I have to sign in every time" on Android - the value was frozen
+  // as null even when a valid session was a moment away from being
+  // ready. No longer cached as a field; the real, settled value is
+  // fetched only when loggdin() actually needs it.
+
   @override
   void initState() {
     super.initState();
@@ -31,10 +38,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> loggdin(BuildContext context) async {
     try {
+      final User? user = await FirebaseAuth.instance.authStateChanges().first;
+
       if (user != null) {
         final GetUserDataController getUserDataController =
             Get.put(GetUserDataController());
-        var userData = await getUserDataController.getUserData(user!.uid);
+        var userData = await getUserDataController.getUserData(user.uid);
 
         if (userData.isNotEmpty && userData[0]['isAdmin'] == true) {
           Get.offAll(() => AdminMainScreen());
