@@ -16,6 +16,7 @@ class SimpleProductCard extends StatelessWidget {
   final VoidCallback? onAddToCart;
   final bool isFavorite;
   final bool showFavorite;
+  final bool isLoading; // Add loading state
   final double? width;
   final double? height;
 
@@ -27,6 +28,7 @@ class SimpleProductCard extends StatelessWidget {
     this.onAddToCart,
     this.isFavorite = false,
     this.showFavorite = false,
+    this.isLoading = false, // Default to false
     this.width,
     this.height,
   }) : super(key: key);
