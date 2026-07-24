@@ -1,6 +1,5 @@
-// ignore_for_file: file_names, unused_field, body_might_complete_normally_nullable, unused_local_variable
+// ignore_for_file: file_names
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:e_comm/services/navigation-service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,7 +8,6 @@ import 'package:get/get.dart';
 
 class SignInController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   //for password visibilty
   var isPasswordVisible = false.obs;
@@ -24,10 +22,10 @@ class SignInController extends GetxController {
       );
 
       EasyLoading.dismiss();
-      
+
       // Execute any pending actions after successful login
       await NavigationService.instance.executePendingActions();
-      
+
       return userCredential;
     } on FirebaseAuthException catch (e) {
       EasyLoading.dismiss();
@@ -38,6 +36,7 @@ class SignInController extends GetxController {
         backgroundColor: AppConstant.appScendoryColor,
         colorText: AppConstant.appTextColor,
       );
+      return null;
     }
   }
 }
