@@ -16,7 +16,7 @@ class AllProductsWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
+      stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).limit(20).snapshots(),
       builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -43,6 +43,7 @@ class AllProductsWidget extends StatelessWidget {
             itemCount: snapshot.data!.docs.length,
             shrinkWrap: true,
             physics: BouncingScrollPhysics(),
+            cacheExtent: 200.0, // Optimize cache for better performance
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 5,
@@ -50,86 +51,8 @@ class AllProductsWidget extends StatelessWidget {
               childAspectRatio: 0.80,
             ),
             itemBuilder: (context, index) {
-              final productData = snapshot.data!.docs[index];
-              ProductModel productModel = ProductModel(
-                productId: productData['productId'],
-                categoryId: productData['categoryId'],
-                productName: productData['productName'],
-                categoryName: productData['categoryName'],
-                salePrice: productData['salePrice'],
-                fullPrice: productData['fullPrice'],
-                productImages: productData['productImages'],
-                deliveryTime: productData['deliveryTime'],
-                isSale: productData['isSale'],
-                productDescription: productData['productDescription'],
-                createdAt: productData['createdAt'],
-                updatedAt: productData['updatedAt'],
-              );
-
-              // CategoriesModel categoriesModel = CategoriesModel(
-              //   categoryId: snapshot.data!.docs[index]['categoryId'],
-              //   categoryImg: snapshot.data!.docs[index]['categoryImg'],
-              //   categoryName: snapshot.data!.docs[index]['categoryName'],
-              //   createdAt: snapshot.data!.docs[index]['createdAt'],
-              //   updatedAt: snapshot.data!.docs[index]['updatedAt'],
-              // );
-              return Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Get.to(
-                        () => ProductDetailsScreen(productModel: productModel)),
-                    child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Container(
-                        child: FillImageCard(
-                          borderRadius: 20.0,
-                          width: Get.width / 2.3,
-                          heightImage: Get.height / 6,
-                          imageProvider: CachedNetworkImageProvider(
-                            productModel.productImages[0],
-                          ),
-                          title: Center(
-                            child: Text(
-                              productModel.productName,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                              style: TextStyle(fontSize: 12.0),
-                            ),
-                          ),
-                          footer: Center(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (productModel.salePrice != '') ...[
-                                  Center(
-                                    child:
-                                        Text("Rs : " + productModel.salePrice),
-                                  ),
-                                  SizedBox(width: 4.0),
-                                  Text(
-                                    " ${productModel.fullPrice}",
-                                    style: TextStyle(
-                                      fontSize: 10.0,
-                                      color: AppConstant.appScendoryColor,
-                                      decoration: TextDecoration.lineThrough,
-                                    ),
-                                  ),
-                                ] else ...[
-                                  Text(
-                                    "Rs: ${productModel.fullPrice}",
-                                    style: TextStyle(
-                                      fontSize: 12.0,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              return RepaintBoundary(
+                child: _buildProductItem(context, index, snapshot.data!.docs),
               );
             },
           );
@@ -137,6 +60,70 @@ class AllProductsWidget extends StatelessWidget {
 
         return Container();
       },
+    );
+  }
+
+  Widget _buildProductItem(BuildContext context, int index, List<QueryDocumentSnapshot> docs) {
+    final productData = docs[index];
+    ProductModel productModel = ProductModel.fromMap(productData);
+
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Get.to(
+              () => ProductDetailsScreen(productModel: productModel)),
+          child: Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Container(
+              child: FillImageCard(
+                borderRadius: 20.0,
+                width: Get.width / 2.3,
+                heightImage: Get.height / 6,
+                imageProvider: CachedNetworkImageProvider(
+                  productModel.productImages[0],
+                ),
+                title: Center(
+                  child: Text(
+                    productModel.productName,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(fontSize: 12.0),
+                  ),
+                ),
+                footer: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (productModel.salePrice != '') ...[
+                        Center(
+                          child:
+                              Text("Rs : " + productModel.salePrice),
+                        ),
+                        SizedBox(width: 4.0),
+                        Text(
+                          " ${productModel.fullPrice}",
+                          style: TextStyle(
+                            fontSize: 10.0,
+                            color: AppConstant.appScendoryColor,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          "Rs: ${productModel.fullPrice}",
+                          style: TextStyle(
+                            fontSize: 12.0,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
