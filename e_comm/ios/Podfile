@@ -39,8 +39,25 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # FIX: permission_handler compiles each permission's native iOS code
+    # as an inert stub - always returning "denied" without ever asking
+    # the OS - unless explicitly enabled here. Camera and Photos are
+    # required because the app uses Permission.camera and Permission.photos
+    # to pick images. Without these flags, the app silently fails the
+    # permission check and bounces straight to Settings, and since iOS was
+    # never actually asked, Camera/Photos never even show up as a
+    # permission category in Settings either. (This should have been
+    # added weeks ago along with the admin app's identical fix, but that
+    # earlier attempt was accidentally pushed to the wrong file path and
+    # never actually took effect here.)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)', '']
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] += [
+        'PERMISSION_CAMERA=1',
+        'PERMISSION_PHOTOS=1',
+      ]
     end
   end
 end
