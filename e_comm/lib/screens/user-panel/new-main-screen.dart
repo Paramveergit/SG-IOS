@@ -1,11 +1,15 @@
 // New Main Screen with Navigation Cards - No Sidebar
 // Implements modern card-based navigation as requested
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../models/order-model.dart';
+import '../../models/order-status.dart';
+import '../../repositories/order-repository.dart';
 import '../../utils/app-constant.dart';
 import '../../widgets/banner-widget.dart';
 import '../../widgets/welcome-popup-widget.dart';
@@ -13,6 +17,7 @@ import '../../controllers/welcome-popup-controller.dart';
 import '../user-panel/enhanced-all-products-screen.dart';
 import '../user-panel/cart-screen.dart' as cart_screen;
 import '../user-panel/profile-screen.dart';
+import '../user-panel/order-detail-screen.dart';
 import '../auth-ui/welcome-screen.dart';
 
 class NewMainScreen extends StatefulWidget {
@@ -25,6 +30,13 @@ class NewMainScreen extends StatefulWidget {
 class _NewMainScreenState extends State<NewMainScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   late WelcomePopupController _welcomeController;
+  StreamSubscription<List<OrderModel>>? _orderStatusSubscription;
+  // Orders whose "shipped" popup has already been shown (or that were
+  // already shipped when this listener first started) - without this,
+  // every unrelated change to an already-shipped order would trigger
+  // the popup again.
+  final Set<String> _shippedPopupShownFor = {};
+  bool _isFirstOrderSnapshot = true;
 
   @override
   void initState() {
@@ -37,6 +49,78 @@ class _NewMainScreenState extends State<NewMainScreen> {
         _welcomeController.showWelcomePopup();
       });
     });
+
+    _listenForShippedOrders();
+  }
+
+  void _listenForShippedOrders() {
+    if (user == null) return;
+    _orderStatusSubscription =
+        OrderRepository().streamOrdersForCustomer(user!.uid).listen((orders) {
+      if (_isFirstOrderSnapshot) {
+        // Don't pop up for orders that were already shipped before the
+        // app was even opened - only for ones that transition while
+        // we're actively watching.
+        for (final order in orders) {
+          if (order.status == OrderStatus.shipped) {
+            _shippedPopupShownFor.add(order.orderId);
+          }
+        }
+        _isFirstOrderSnapshot = false;
+        return;
+      }
+
+      for (final order in orders) {
+        if (order.status == OrderStatus.shipped &&
+            !_shippedPopupShownFor.contains(order.orderId)) {
+          _shippedPopupShownFor.add(order.orderId);
+          _showShippedPopup(order);
+        }
+      }
+    });
+  }
+
+  void _showShippedPopup(OrderModel order) {
+    if (!mounted) return;
+    final displayNumber =
+        order.orderNumber.isNotEmpty ? order.orderNumber : order.orderId;
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Your order has shipped! \u{1F69A}'),
+          content: Text(
+            "Hey! Your order having order number $displayNumber has been "
+            "shipped and you can track the live update using the "
+            "transporter details mentioned. Once the product gets "
+            "delivered, please mark it as received.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Later'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OrderDetailScreen(order: order),
+                  ),
+                );
+              },
+              child: const Text('View details'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _orderStatusSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -56,44 +140,46 @@ class _NewMainScreenState extends State<NewMainScreen> {
         centerTitle: true,
 
       ),
-            body: Stack(
-        children: [
-          // Main Content
-          Column(
-            children: [
-              // Scrollable Content
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16.0),
-                      
-                      // Banner Section
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: BannerWidget(),
-                      ),
-                      
-                      const SizedBox(height: 32.0),
-                      
-                      // Navigation Cards Section
-                      _buildNavigationCards(),
-                      
-                      const SizedBox(height: 32.0),
-                    ],
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Main Content
+            Column(
+              children: [
+                // Scrollable Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16.0),
+                        
+                        // Banner Section
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: BannerWidget(),
+                        ),
+                        
+                        const SizedBox(height: 32.0),
+                        
+                        // Navigation Cards Section
+                        _buildNavigationCards(),
+                        
+                        const SizedBox(height: 32.0),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              
-              // Logout Section (Fixed at bottom)
-              _buildLogoutSection(),
-            ],
-          ),
-          
-          // Welcome Popup (overlay)
-          const WelcomePopupWidget(),
-        ],
+                
+                // Logout Section (Fixed at bottom with safe area)
+                _buildLogoutSection(),
+              ],
+            ),
+            
+            // Welcome Popup (overlay)
+            const WelcomePopupWidget(),
+          ],
+        ),
       ),
     );
   }
@@ -194,25 +280,22 @@ class _NewMainScreenState extends State<NewMainScreen> {
                 color: Colors.blue.shade50,
                 iconColor: Colors.blue,
                 onTap: () => Get.to(() => const EnhancedAllProductsScreen()),
-                requiresAuth: false,
               ),
               _buildNavigationCard(
                 icon: Icons.person_outline,
                 title: 'My Profile',
-                subtitle: user != null ? 'Orders & settings' : 'Login required',
+                subtitle: 'Orders & settings',
                 color: Colors.green.shade50,
                 iconColor: Colors.green,
                 onTap: () => Get.to(() => const ProfileScreen()),
-                requiresAuth: true,
               ),
               _buildNavigationCard(
                 icon: Icons.shopping_cart_outlined,
                 title: 'My Cart',
-                subtitle: user != null ? 'Review your items' : 'Login required',
+                subtitle: 'Review your items',
                 color: Colors.orange.shade50,
                 iconColor: Colors.orange,
                 onTap: () => Get.to(() => const cart_screen.CartScreen()),
-                requiresAuth: true,
               ),
               _buildNavigationCard(
                 icon: Icons.help_outline,
@@ -221,7 +304,6 @@ class _NewMainScreenState extends State<NewMainScreen> {
                 color: Colors.purple.shade50,
                 iconColor: Colors.purple,
                 onTap: () => _showSupportOptions(),
-                requiresAuth: false,
               ),
             ],
           ),
@@ -237,7 +319,6 @@ class _NewMainScreenState extends State<NewMainScreen> {
     required Color color,
     required Color iconColor,
     required VoidCallback onTap,
-    required bool requiresAuth,
   }) {
     return Material(
       color: Colors.transparent,
@@ -265,40 +346,18 @@ class _NewMainScreenState extends State<NewMainScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon with auth indicator
-              Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: iconColor,
-                      size: 24.0,
-                    ),
-                  ),
-                  // Show lock icon for auth-required features when not logged in
-                  if (requiresAuth && user == null)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2.0),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade600,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.lock,
-                          color: Colors.white,
-                          size: 12.0,
-                        ),
-                      ),
-                    ),
-                ],
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 24.0,
+                ),
               ),
               
               const SizedBox(height: 8.0),
@@ -342,7 +401,12 @@ class _NewMainScreenState extends State<NewMainScreen> {
 
   Widget _buildLogoutSection() {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.only(
+        left: 16.0,
+        right: 16.0,
+        top: 16.0,
+        bottom: 16.0 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -355,39 +419,24 @@ class _NewMainScreenState extends State<NewMainScreen> {
       ),
       child: Column(
         children: [
-          // Sign In / Logout Button
+          // Logout Button
           SizedBox(
             width: double.infinity,
-            child: user != null
-                ? ElevatedButton.icon(
-                    onPressed: () => _showLogoutDialog(),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade50,
-                      foregroundColor: Colors.red.shade700,
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      elevation: 0,
-                      side: BorderSide(color: Colors.red.shade200),
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () => Get.to(() => WelcomeScreen()),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Sign In'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstant.appMainColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
+            child: ElevatedButton.icon(
+              onPressed: () => _showLogoutDialog(),
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade50,
+                foregroundColor: Colors.red.shade700,
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                elevation: 0,
+                side: BorderSide(color: Colors.red.shade200),
+              ),
+            ),
           ),
           
           const SizedBox(height: 16.0),
@@ -476,11 +525,38 @@ class _NewMainScreenState extends State<NewMainScreen> {
             // Support Options
             _buildSupportOption(
               icon: Icons.phone,
-              title: 'Call Us/WhatsApp',
+              title: 'Call Us',
               subtitle: '+91 9830464031',
-              onTap: () {
+              onTap: () async {
                 Get.back();
-                _showContactOptions();
+                final uri = Uri(scheme: 'tel', path: '+919830464031');
+                if (!await launchUrl(uri)) {
+                  Get.snackbar(
+                    'Couldn\'t open dialer',
+                    'You can reach us at +91 9830464031',
+                    snackPosition: SnackPosition.BOTTOM,
+                  );
+                }
+              },
+            ),
+            
+            _buildSupportOption(
+              icon: Icons.message,
+              title: 'WhatsApp',
+              subtitle: 'Chat with us',
+              onTap: () async {
+                Get.back();
+                final message = Uri.encodeComponent(
+                    "Hi, I need help with my Sunder Garments order.");
+                final uri = Uri.parse(
+                    'https://wa.me/919830464031?text=$message');
+                if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                  Get.snackbar(
+                    'Couldn\'t open WhatsApp',
+                    'Message us directly at +91 9830464031',
+                    snackPosition: SnackPosition.BOTTOM,
+                  );
+                }
               },
             ),
             
@@ -488,9 +564,20 @@ class _NewMainScreenState extends State<NewMainScreen> {
               icon: Icons.email,
               title: 'Email',
               subtitle: 'support@sundergarments.com',
-              onTap: () {
+              onTap: () async {
                 Get.back();
-                // Add email functionality
+                final uri = Uri(
+                  scheme: 'mailto',
+                  path: 'support@sundergarments.com',
+                  query: 'subject=${Uri.encodeComponent("Support request")}',
+                );
+                if (!await launchUrl(uri)) {
+                  Get.snackbar(
+                    'Couldn\'t open mail app',
+                    'Email us at support@sundergarments.com',
+                    snackPosition: SnackPosition.BOTTOM,
+                  );
+                }
               },
             ),
             
@@ -523,71 +610,6 @@ class _NewMainScreenState extends State<NewMainScreen> {
       title: Text(title),
       subtitle: Text(subtitle),
       onTap: onTap,
-    );
-  }
-
-  void _showContactOptions() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Contact Options'),
-          content: const Text('How would you like to contact us?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _makePhoneCall();
-              },
-              child: const Text('Call'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _openWhatsApp();
-              },
-              child: const Text('WhatsApp'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _makePhoneCall() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+919830464031');
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
-    } else {
-      _showErrorSnackBar('Could not make phone call');
-    }
-  }
-
-  Future<void> _openWhatsApp() async {
-    final String phoneNumber = '+919830464031';
-    final String message = 'Hello Sunder Garments, I need support.';
-    final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}');
-    
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri);
-    } else {
-      _showErrorSnackBar('Could not open WhatsApp');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
     );
   }
 }
