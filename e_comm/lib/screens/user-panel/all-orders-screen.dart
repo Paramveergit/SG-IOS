@@ -1,12 +1,16 @@
-// ignore_for_file: file_names, prefer_const_constructors, avoid_unnecessary_containers, prefer_const_literals_to_create_immutables, sized_box_for_whitespace, avoid_print
+// ignore_for_file: file_names
 import 'package:e_comm/models/order-model.dart';
 import 'package:e_comm/models/order-status.dart';
 import 'package:e_comm/repositories/order-repository.dart';
 import 'package:e_comm/screens/user-panel/order-detail-screen.dart';
-import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
+import '../../widgets/status_badge.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_error_state.dart';
+import '../../widgets/skeleton_box.dart';
 
 class AllOrdersScreen extends StatefulWidget {
   const AllOrdersScreen({super.key});
@@ -19,71 +23,91 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> {
   User? user = FirebaseAuth.instance.currentUser;
   final OrderRepository orderRepository = OrderRepository();
 
-  Color _statusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.delivered:
-        return Colors.green;
-      case OrderStatus.cancelled:
-        return Colors.red;
-      case OrderStatus.shipped:
-      case OrderStatus.dispatched:
-        return Colors.blue;
-      default:
-        return Colors.orange;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        iconTheme: IconThemeData(
-          color: AppConstant.appTextColor,
-        ),
-        backgroundColor: AppConstant.appMainColor,
-        title: Text(
-          'All Orders',
-          style: TextStyle(color: AppConstant.appTextColor),
-        ),
+        title: const Text('All orders'),
       ),
       body: user == null
-          ? Center(child: Text('Please sign in to view your orders'))
+          ? const AppEmptyState(
+              icon: Icons.lock_outline,
+              title: 'Please sign in to view your orders',
+            )
           : StreamBuilder<List<OrderModel>>(
               stream: orderRepository.streamOrdersForCustomer(user!.uid),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Could not load your orders:\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                  return AppErrorState(
+                    title: 'Could not load your orders',
+                    message: snapshot.error.toString(),
                   );
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Container(
-                    height: MediaQuery.of(context).size.height / 5,
-                    child: Center(
-                      child: CupertinoActivityIndicator(),
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: 5,
+                    itemBuilder: (context, index) => const Padding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: SkeletonBox(height: 72),
                     ),
                   );
                 }
 
                 final orders = snapshot.data ?? [];
                 if (orders.isEmpty) {
-                  return Center(
-                    child: Text("No orders found!"),
+                  return const AppEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No orders yet',
+                    message: 'Orders you place will show up here.',
                   );
                 }
 
                 return ListView.builder(
-                  itemCount: orders.length,
-                  shrinkWrap: true,
-                  physics: BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  itemCount: orders.length + 1,
+                  physics: const BouncingScrollPhysics(),
                   itemBuilder: (context, index) {
-                    final order = orders[index];
+                    if (index == 0) {
+                      // Cancelled orders count toward "orders placed"
+                      // (they genuinely were), but not toward the
+                      // amount spent - that should reflect real
+                      // business done, not orders that didn't
+                      // actually go through. Matches how most
+                      // lifetime-spend stats work.
+                      final totalSpent = orders
+                          .where((o) => o.status != OrderStatus.cancelled)
+                          .fold(0.0, (sum, o) => sum + o.total);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _OrderStatColumn(
+                                label: 'Total orders',
+                                value: '${orders.length}',
+                              ),
+                            ),
+                            Container(width: 1, height: 36, color: AppColors.surfaceBorder),
+                            Expanded(
+                              child: _OrderStatColumn(
+                                label: 'Total spent',
+                                value: '\u20b9${totalSpent.toStringAsFixed(0)}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final order = orders[index - 1];
                     final firstItem =
                         order.items.isNotEmpty ? order.items.first : null;
                     final itemSummary = firstItem == null
@@ -93,8 +117,7 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> {
                             : firstItem.productName);
 
                     return Card(
-                      elevation: 5,
-                      color: AppConstant.appTextColor,
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                       child: ListTile(
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -102,24 +125,29 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> {
                           ),
                         ),
                         leading: CircleAvatar(
-                          backgroundColor: AppConstant.appMainColor,
+                          backgroundColor: AppColors.surfaceMuted,
                           backgroundImage: (firstItem != null &&
                                   firstItem.productImages.isNotEmpty)
                               ? NetworkImage(firstItem.productImages[0])
                               : null,
                         ),
                         title: Text(itemSummary),
-                        subtitle: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Text('Rs. ${order.total.toStringAsFixed(2)}'),
-                            SizedBox(width: 10.0),
-                            Text(
-                              order.status.label,
-                              style: TextStyle(
-                                  color: _statusColor(order.status)),
-                            ),
-                          ],
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Text(
+                                '₹${order.total.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              StatusBadge(status: order.status),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -127,6 +155,35 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+class _OrderStatColumn extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _OrderStatColumn({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+      ],
     );
   }
 }
