@@ -1,131 +1,259 @@
-// Welcome Popup Widget - User engagement and onboarding
+// Welcome Popup Widget
+// Beautiful popup that appears once when the app is opened
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/welcome-popup-controller.dart';
-import '../utils/app-constant.dart';
+import '../theme/app_colors.dart';
 
 class WelcomePopupWidget extends StatelessWidget {
   const WelcomePopupWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GetBuilder<WelcomePopupController>(
-      builder: (controller) {
-        if (!controller.isVisible) {
-          return const SizedBox.shrink();
-        }
+    final WelcomePopupController controller = Get.find<WelcomePopupController>();
+    return _buildWelcomePopup(context, controller);
+  }
 
-        return Container(
-          color: Colors.black.withOpacity(0.5),
-          child: Center(
+  void _dismiss(WelcomePopupController controller) {
+    controller.markWelcomeAsShown();
+    Get.back();
+  }
+
+  Widget _buildWelcomePopup(BuildContext context, WelcomePopupController controller) {
+    return Material(
+      color: AppColors.textPrimary.withOpacity(0.5),
+      child: Stack(
+        children: [
+          // Backdrop
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => _dismiss(controller),
+              child: Container(
+                color: Colors.transparent,
+              ),
+            ),
+          ),
+          
+          // Popup Content
+          Center(
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32.0),
-              padding: const EdgeInsets.all(24.0),
+              margin: const EdgeInsets.all(32.0),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 20.0,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(24.0),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Welcome Icon
+                  // Header with gradient
                   Container(
-                    width: 80.0,
-                    height: 80.0,
-                    decoration: BoxDecoration(
-                      color: AppConstant.appMainColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
+                    padding: const EdgeInsets.all(24.0),
+                    decoration: const BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(24.0),
+                        topRight: Radius.circular(24.0),
+                      ),
                     ),
-                    child: Icon(
-                      Icons.waving_hand,
-                      size: 40.0,
-                      color: AppConstant.appMainColor,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20.0),
-                  
-                  // Welcome Title
-                  const Text(
-                    'Welcome to Sunder Garments!',
-                    style: TextStyle(
-                      fontSize: 24.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  const SizedBox(height: 12.0),
-                  
-                  // Welcome Message
-                  Text(
-                    'Discover amazing clothing at great prices. Start shopping now!',
-                    style: TextStyle(
-                      fontSize: 16.0,
-                      color: Colors.grey.shade600,
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  const SizedBox(height: 24.0),
-                  
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => controller.hideWelcomePopup(),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12.0),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                    child: Column(
+                      children: [
+                        // User Avatar
+                        Container(
+                          width: 80.0,
+                          height: 80.0,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              BorderSide(color: AppColors.textOnBrand, width: 4.0),
                             ),
                           ),
-                          child: Text(
-                            'Maybe Later',
+                          child: CircleAvatar(
+                            radius: 36.0,
+                            backgroundColor: AppColors.surface,
+                            backgroundImage: controller.userPhotoURL != null 
+                              ? NetworkImage(controller.userPhotoURL!) 
+                              : null,
+                            child: controller.userPhotoURL == null 
+                              ? const Icon(
+                                  Icons.person,
+                                  color: AppColors.brand,
+                                  size: 40.0,
+                                )
+                              : null,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16.0),
+                        
+                        // Welcome Text
+                        const Text(
+                          'Welcome back!',
+                          style: TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textOnBrand,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 8.0),
+                        
+                        Text(
+                          controller.userDisplayName,
+                          style: const TextStyle(
+                            fontSize: 24.0,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textOnBrand,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        // Welcome Message
+                        const Text(
+                          'We\'re excited to have you back!',
+                          style: TextStyle(
+                            fontSize: 18.0,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        
+                        const SizedBox(height: 12.0),
+                        
+                        const Text(
+                          'Discover our latest collection of premium garments crafted just for you.',
+                          style: TextStyle(
+                            fontSize: 14.0,
+                            color: AppColors.textSecondary,
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        
+                        const SizedBox(height: 24.0),
+                        
+                        // Features List
+                        _buildFeatureItem(
+                          icon: Icons.local_offer_outlined,
+                          title: 'Exclusive Offers',
+                          subtitle: 'Get special discounts on premium products',
+                        ),
+                        
+                        const SizedBox(height: 12.0),
+                        
+                        _buildFeatureItem(
+                          icon: Icons.delivery_dining_outlined,
+                          title: 'Fast Delivery',
+                          subtitle: 'Quick and reliable shipping to your doorstep',
+                        ),
+                        
+                        const SizedBox(height: 12.0),
+                        
+                        _buildFeatureItem(
+                          icon: Icons.verified_outlined,
+                          title: 'Quality Assured',
+                          subtitle: 'Premium fabrics and expert craftsmanship',
+                        ),
+                        
+                        const SizedBox(height: 32.0),
+                        
+                        // Action Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _dismiss(controller),
+                            child: const Text(
+                              'Start shopping',
+                              style: TextStyle(
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 12.0),
+                        
+                        // Skip Button
+                        TextButton(
+                          onPressed: () => _dismiss(controller),
+                          child: const Text(
+                            'Skip for now',
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: AppColors.textSecondary,
+                              fontSize: 14.0,
                             ),
                           ),
                         ),
-                      ),
-                      
-                      const SizedBox(width: 12.0),
-                      
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            controller.hideWelcomePopup();
-                            // Navigate to products or main screen
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppConstant.appMainColor,
-                            foregroundColor: AppConstant.appTextColor,
-                            padding: const EdgeInsets.symmetric(vertical: 12.0),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          child: const Text('Start Shopping'),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8.0),
+          decoration: BoxDecoration(
+            color: AppColors.brandTintBg,
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+          child: Icon(
+            icon,
+            color: AppColors.brand,
+            size: 20.0,
+          ),
+        ),
+        
+        const SizedBox(width: 12.0),
+        
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12.0,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
+
+
+
+
