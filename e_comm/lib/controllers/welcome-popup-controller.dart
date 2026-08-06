@@ -1,14 +1,16 @@
-// Welcome Popup Controller - Manages welcome popup state
+// Welcome Popup Controller
+// Manages the welcome popup that appears only once when the app is opened
 
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class WelcomePopupController extends GetxController {
-  final GetStorage _storage = GetStorage();
-  static const String _welcomeShownKey = 'welcome_popup_shown';
+  final _storage = GetStorage();
+  final _user = FirebaseAuth.instance.currentUser;
   
-  bool _isVisible = false;
-  bool get isVisible => _isVisible;
+  RxBool shouldShowWelcome = false.obs;
+  RxBool isShowingWelcome = false.obs;
 
   @override
   void onInit() {
@@ -16,33 +18,76 @@ class WelcomePopupController extends GetxController {
     _checkWelcomeStatus();
   }
 
+  /// Check if welcome popup should be shown
   void _checkWelcomeStatus() {
-    // Check if welcome popup has been shown before
-    final hasShownWelcome = _storage.read(_welcomeShownKey) ?? false;
+    if (_user == null) return;
     
-    // Show welcome popup only if it hasn't been shown before
+    final String userId = _user!.uid;
+    final String welcomeKey = 'welcome_shown_$userId';
+    
+    // Check if welcome has been shown for this user
+    final bool hasShownWelcome = _storage.read(welcomeKey) ?? false;
+    
     if (!hasShownWelcome) {
-      // Delay showing the popup to ensure the screen is fully loaded
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        showWelcomePopup();
-      });
+      shouldShowWelcome.value = true;
     }
   }
 
+  /// Show the welcome popup
   void showWelcomePopup() {
-    _isVisible = true;
-    update();
+    if (shouldShowWelcome.value && !isShowingWelcome.value) {
+      isShowingWelcome.value = true;
+    }
   }
 
-  void hideWelcomePopup() {
-    _isVisible = false;
-    update();
-    
-    // Mark welcome popup as shown
-    _storage.write(_welcomeShownKey, true);
+  /// Mark welcome as shown and hide popup
+  void markWelcomeAsShown() {
+    if (_user != null) {
+      final String userId = _user!.uid;
+      final String welcomeKey = 'welcome_shown_$userId';
+      
+      // Mark as shown in storage
+      _storage.write(welcomeKey, true);
+      
+      // Update state
+      shouldShowWelcome.value = false;
+      isShowingWelcome.value = false;
+    }
   }
 
+  /// Get user display name
+  String get userDisplayName {
+    return _user?.displayName ?? 'Dear Customer';
+  }
+
+  /// Get user email
+  String? get userEmail {
+    return _user?.email;
+  }
+
+  /// Get user photo URL
+  String? get userPhotoURL {
+    return _user?.photoURL;
+  }
+
+  /// Check if user is logged in
+  bool get isUserLoggedIn {
+    return _user != null;
+  }
+
+  /// Reset welcome status (for testing)
   void resetWelcomeStatus() {
-    _storage.remove(_welcomeShownKey);
+    if (_user != null) {
+      final String userId = _user!.uid;
+      final String welcomeKey = 'welcome_shown_$userId';
+      
+      _storage.remove(welcomeKey);
+      shouldShowWelcome.value = true;
+      isShowingWelcome.value = false;
+    }
   }
 }
+
+
+
+

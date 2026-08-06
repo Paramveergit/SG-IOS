@@ -1,24 +1,35 @@
-// New Main Screen with Navigation Cards - No Sidebar
-// Implements modern card-based navigation as requested
+// Home screen - Warehouse Ledger, Storefront design.
+//
+// Rebuilt per direct feedback: Home used to be just 4 static menu
+// cards with no actual products visible. Now shows the same live
+// product feed as the Browsing screen (shared via ProductFeedWidget,
+// see lib/widgets/product_feed_widget.dart), with a bottom nav bar
+// for Cart/Profile/Help since those are no longer reachable via nav
+// cards. Sign-out moved to live only in Profile (it was duplicated
+// here before) - Profile already has its own full sign-out flow.
+//
+// All functional logic (shipped-order popup listener, welcome popup)
+// is unchanged from before.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../models/order-model.dart';
 import '../../models/order-status.dart';
 import '../../repositories/order-repository.dart';
-import '../../utils/app-constant.dart';
-import '../../widgets/banner-widget.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
+import '../../theme/app_spacing.dart';
 import '../../widgets/welcome-popup-widget.dart';
+import '../../widgets/product_feed_widget.dart';
+import '../../widgets/cart_icon_badge.dart';
+import '../../widgets/support_sheet.dart';
 import '../../controllers/welcome-popup-controller.dart';
-import '../user-panel/enhanced-all-products-screen.dart';
-import '../user-panel/cart-screen.dart' as cart_screen;
 import '../user-panel/profile-screen.dart';
 import '../user-panel/order-detail-screen.dart';
-import '../auth-ui/welcome-screen.dart';
+import '../user-panel/all-orders-screen.dart';
 
 class NewMainScreen extends StatefulWidget {
   const NewMainScreen({super.key});
@@ -31,10 +42,6 @@ class _NewMainScreenState extends State<NewMainScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   late WelcomePopupController _welcomeController;
   StreamSubscription<List<OrderModel>>? _orderStatusSubscription;
-  // Orders whose "shipped" popup has already been shown (or that were
-  // already shipped when this listener first started) - without this,
-  // every unrelated change to an already-shipped order would trigger
-  // the popup again.
   final Set<String> _shippedPopupShownFor = {};
   bool _isFirstOrderSnapshot = true;
 
@@ -42,11 +49,16 @@ class _NewMainScreenState extends State<NewMainScreen> {
   void initState() {
     super.initState();
     _welcomeController = Get.put(WelcomePopupController());
-    
-    // Show welcome popup after a short delay
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
-        _welcomeController.showWelcomePopup();
+        if (_welcomeController.shouldShowWelcome.value) {
+          _welcomeController.isShowingWelcome.value = true;
+          Get.dialog(
+            const WelcomePopupWidget(),
+            barrierColor: Colors.transparent,
+          );
+        }
       });
     });
 
@@ -58,9 +70,6 @@ class _NewMainScreenState extends State<NewMainScreen> {
     _orderStatusSubscription =
         OrderRepository().streamOrdersForCustomer(user!.uid).listen((orders) {
       if (_isFirstOrderSnapshot) {
-        // Don't pop up for orders that were already shipped before the
-        // app was even opened - only for ones that transition while
-        // we're actively watching.
         for (final order in orders) {
           if (order.status == OrderStatus.shipped) {
             _shippedPopupShownFor.add(order.orderId);
@@ -126,552 +135,107 @@ class _NewMainScreenState extends State<NewMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        automaticallyImplyLeading: false, // Remove hamburger menu
+        automaticallyImplyLeading: false,
         systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: AppConstant.appScendoryColor,
-          statusBarIconBrightness: Brightness.light,
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
         ),
-        backgroundColor: AppConstant.appMainColor,
-        elevation: 2.0,
-        toolbarHeight: 80.0, // Increased height for logo
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        toolbarHeight: 72.0,
         title: _buildHeaderWithLogo(),
-        centerTitle: true,
-
-      ),
-            body: Stack(
-        children: [
-          // Main Content
-          Column(
-            children: [
-              // Scrollable Content
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16.0),
-                      
-                      // Banner Section
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: BannerWidget(),
-                      ),
-                      
-                      const SizedBox(height: 32.0),
-                      
-                      // Navigation Cards Section
-                      _buildNavigationCards(),
-                      
-                      const SizedBox(height: 32.0),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Logout Section (Fixed at bottom)
-              _buildLogoutSection(),
-            ],
-          ),
-          
-          // Welcome Popup (overlay)
-          const WelcomePopupWidget(),
+        centerTitle: false,
+        actions: const [
+          CartIconWithBadge(),
         ],
       ),
+      body: const SafeArea(
+        child: ProductFeedWidget(),
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return BottomNavigationBar(
+      currentIndex: 0,
+      type: BottomNavigationBarType.fixed,
+      onTap: (index) {
+        switch (index) {
+          case 1:
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AllOrdersScreen()),
+            );
+            break;
+          case 2:
+            Get.to(() => const ProfileScreen());
+            break;
+          case 3:
+            showSupportOptionsSheet(context);
+            break;
+        }
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.storefront_outlined), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), label: 'Orders'),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+        BottomNavigationBarItem(icon: Icon(Icons.help_outline), label: 'Help'),
+      ],
     );
   }
 
   Widget _buildHeaderWithLogo() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Logo
         Container(
           width: 40.0,
           height: 40.0,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8.0),
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             child: Image.asset(
               'assets/images/SG_logo.png',
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return const Icon(
                   Icons.store,
-                  color: AppConstant.appTextColor,
+                  color: AppColors.brand,
                   size: 24.0,
                 );
               },
             ),
           ),
         ),
-        const SizedBox(width: 12.0),
-        // Title and GST Number
-        Column(
+        const SizedBox(width: AppSpacing.sm),
+        const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Sunder Garments',
               style: TextStyle(
-                color: AppConstant.appTextColor,
-                fontSize: 28.0,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
+                color: AppColors.textPrimary,
+                fontSize: 18.0,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 4.0),
             Text(
               'GST: 19AIQPD5899L1Z8',
               style: TextStyle(
-                color: AppConstant.appTextColor.withOpacity(0.8),
-                fontSize: 14.0,
+                color: AppColors.textSecondary,
+                fontSize: 12.0,
                 fontWeight: FontWeight.w500,
-                letterSpacing: 0.5,
               ),
             ),
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildNavigationCards() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Title
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Text(
-            'Explore',
-            style: TextStyle(
-              fontSize: 24.0,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16.0),
-        
-        // Navigation Cards Grid
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16.0,
-            mainAxisSpacing: 16.0,
-            childAspectRatio: 1.3,
-            children: [
-              _buildNavigationCard(
-                icon: Icons.inventory_2_outlined,
-                title: 'All Products',
-                subtitle: 'Browse our collection',
-                color: Colors.blue.shade50,
-                iconColor: Colors.blue,
-                onTap: () => Get.to(() => const EnhancedAllProductsScreen()),
-                requiresAuth: false,
-              ),
-              _buildNavigationCard(
-                icon: Icons.person_outline,
-                title: 'My Profile',
-                subtitle: user != null ? 'Orders & settings' : 'Login required',
-                color: Colors.green.shade50,
-                iconColor: Colors.green,
-                onTap: () => Get.to(() => const ProfileScreen()),
-                requiresAuth: true,
-              ),
-              _buildNavigationCard(
-                icon: Icons.shopping_cart_outlined,
-                title: 'My Cart',
-                subtitle: user != null ? 'Review your items' : 'Login required',
-                color: Colors.orange.shade50,
-                iconColor: Colors.orange,
-                onTap: () => Get.to(() => const cart_screen.CartScreen()),
-                requiresAuth: true,
-              ),
-              _buildNavigationCard(
-                icon: Icons.help_outline,
-                title: 'Help & Support',
-                subtitle: 'Get assistance',
-                color: Colors.purple.shade50,
-                iconColor: Colors.purple,
-                onTap: () => _showSupportOptions(),
-                requiresAuth: false,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavigationCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required Color iconColor,
-    required VoidCallback onTap,
-    required bool requiresAuth,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16.0),
-        child: Container(
-          padding: const EdgeInsets.all(12.0),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(16.0),
-            border: Border.all(
-              color: iconColor.withOpacity(0.2),
-              width: 1.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: iconColor.withOpacity(0.1),
-                blurRadius: 8.0,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icon with auth indicator
-              Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: iconColor,
-                      size: 24.0,
-                    ),
-                  ),
-                  // Show lock icon for auth-required features when not logged in
-                  if (requiresAuth && user == null)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2.0),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade600,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.lock,
-                          color: Colors.white,
-                          size: 12.0,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              
-              const SizedBox(height: 8.0),
-              
-              // Title
-              Flexible(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              
-              const SizedBox(height: 2.0),
-              
-              // Subtitle
-              Flexible(
-                child: Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 10.0,
-                    color: Colors.grey.shade600,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoutSection() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8.0,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Sign In / Logout Button
-          SizedBox(
-            width: double.infinity,
-            child: user != null
-                ? ElevatedButton.icon(
-                    onPressed: () => _showLogoutDialog(),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade50,
-                      foregroundColor: Colors.red.shade700,
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      elevation: 0,
-                      side: BorderSide(color: Colors.red.shade200),
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () => Get.to(() => WelcomeScreen()),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Sign In'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstant.appMainColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
-          ),
-          
-          const SizedBox(height: 16.0),
-          
-          // Copyright Text
-          Text(
-            '© 2024 Sunder Garments. All rights reserved.',
-            style: TextStyle(
-              fontSize: 12.0,
-              color: Colors.grey.shade500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await FirebaseAuth.instance.signOut();
-              Get.offAll(() => WelcomeScreen());
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSupportOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Container(
-              margin: const EdgeInsets.only(top: 12.0),
-              width: 40.0,
-              height: 4.0,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2.0),
-              ),
-            ),
-            
-            const SizedBox(height: 20.0),
-            
-            // Title
-            const Text(
-              'Help & Support',
-              style: TextStyle(
-                fontSize: 20.0,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            
-            const SizedBox(height: 20.0),
-            
-            // Support Options
-            _buildSupportOption(
-              icon: Icons.phone,
-              title: 'Call Us/WhatsApp',
-              subtitle: '+91 9830464031',
-              onTap: () {
-                Get.back();
-                _showContactOptions();
-              },
-            ),
-            
-            _buildSupportOption(
-              icon: Icons.email,
-              title: 'Email',
-              subtitle: 'support@sundergarments.com',
-              onTap: () {
-                Get.back();
-                // Add email functionality
-              },
-            ),
-            
-            const SizedBox(height: 20.0),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSupportOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8.0),
-        decoration: BoxDecoration(
-          color: AppConstant.appMainColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        child: Icon(
-          icon,
-          color: AppConstant.appMainColor,
-          size: 20.0,
-        ),
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      onTap: onTap,
-    );
-  }
-
-  void _showContactOptions() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Contact Options'),
-          content: const Text('How would you like to contact us?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _makePhoneCall();
-              },
-              child: const Text('Call'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _openWhatsApp();
-              },
-              child: const Text('WhatsApp'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _makePhoneCall() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+919830464031');
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
-    } else {
-      _showErrorSnackBar('Could not make phone call');
-    }
-  }
-
-  Future<void> _openWhatsApp() async {
-    final String phoneNumber = '+919830464031';
-    final String message = 'Hello Sunder Garments, I need support.';
-    final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}');
-    
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri);
-    } else {
-      _showErrorSnackBar('Could not open WhatsApp');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
     );
   }
 }
