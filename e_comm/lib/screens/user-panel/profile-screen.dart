@@ -1,14 +1,24 @@
-// Profile Screen - User account management and order history
+// Profile Screen with Orders and User Information
+// Fixed to properly query orders and show only order count
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../utils/app-constant.dart';
-import '../../utils/auth-guard.dart';
-import '../auth-ui/welcome-screen.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../models/order-model.dart';
+import '../../models/order-status.dart';
+import '../../repositories/order-repository.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
+import '../../theme/app_radius.dart';
+import '../../widgets/status_badge.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_error_state.dart';
+import 'order-detail-screen.dart';
 import 'all-orders-screen.dart';
-import '../../services/delete-account-service.dart';
+import '../auth-ui/welcome-screen.dart';
+import '../../utils/auth-guard.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,11 +29,15 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
+  final OrderRepository orderRepository = OrderRepository();
 
   @override
   void initState() {
     super.initState();
-    // Check authentication when screen initializes
+    // Check authentication when screen initializes - iOS supports
+    // guest browsing (Home is reachable without signing in), so this
+    // gate lives here at the destination rather than blocking the
+    // whole app upfront the way Android's HomeRouter does.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!AuthGuard.requireAuth(returnScreen: const ProfileScreen())) {
         return; // User will be redirected to login
@@ -42,35 +56,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: AppConstant.appTextColor),
-        ),
-        backgroundColor: AppConstant.appMainColor,
-        iconTheme: const IconThemeData(color: AppConstant.appTextColor),
-        elevation: 2.0,
+        title: const Text('Profile'),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Profile Header
-              _buildProfileHeader(),
-              
-              const SizedBox(height: 24.0),
-              
-              // Profile Options
-              _buildProfileOptions(),
-              
-              const SizedBox(height: 24.0),
-              
-              // Account Actions
-              _buildAccountActions(),
-            ],
-          ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // User Profile Section
+            _buildProfileHeader(),
+            
+            const SizedBox(height: 24.0),
+            
+            // Order History Section
+            _buildOrderHistorySection(),
+            
+            const SizedBox(height: 24.0),
+            
+            // Account Actions Section
+            _buildAccountActions(),
+            
+            const SizedBox(height: 32.0),
+          ],
         ),
       ),
     );
@@ -78,17 +85,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader() {
     return Container(
-      padding: const EdgeInsets.all(20.0),
+      width: double.infinity,
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10.0,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         children: [
@@ -96,14 +99,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             width: 80.0,
             height: 80.0,
-            decoration: BoxDecoration(
-              color: AppConstant.appMainColor.withOpacity(0.1),
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
+              border: Border.fromBorderSide(BorderSide(color: AppColors.brand, width: 3.0)),
             ),
-            child: Icon(
-              Icons.person,
-              size: 40.0,
-              color: AppConstant.appMainColor,
+            child: CircleAvatar(
+              radius: 36.0,
+              backgroundColor: AppColors.brand,
+              backgroundImage: user?.photoURL != null 
+                ? NetworkImage(user!.photoURL!) 
+                : null,
+              child: user?.photoURL == null 
+                ? const Icon(
+                    Icons.person,
+                    color: AppColors.textOnBrand,
+                    size: 40.0,
+                  )
+                : null,
             ),
           ),
           
@@ -115,294 +127,482 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: const TextStyle(
               fontSize: 24.0,
               fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
           ),
           
           const SizedBox(height: 4.0),
           
           // User Email
-          Text(
-            user?.email ?? 'No email',
-            style: TextStyle(
-              fontSize: 16.0,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          
-          const SizedBox(height: 16.0),
-          
-          // User ID
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(20.0),
-            ),
-            child: Text(
-              'ID: ${user?.uid.substring(0, 8)}...',
-              style: TextStyle(
-                fontSize: 12.0,
-                color: Colors.grey.shade600,
+          if (user?.email != null)
+            Text(
+              user!.email!,
+              style: const TextStyle(
+                fontSize: 14.0,
+                color: AppColors.textSecondary,
               ),
             ),
+          
+          const SizedBox(height: 16.0),
+
+          // Stats grid
+          StreamBuilder<List<OrderModel>>(
+            stream: user != null
+              ? orderRepository.streamOrdersForCustomer(user!.uid)
+              : null,
+            builder: (context, snapshot) {
+              // FIX: this used to only check hasData, so a genuine
+              // Firestore error (permission, missing index, etc.) on
+              // this account's orders query silently displayed as "0"
+              // - indistinguishable from actually having zero orders.
+              if (snapshot.hasError) {
+                debugPrint('Order stats stream error: ${snapshot.error}');
+                return _buildStatItem(
+                  icon: Icons.error_outline,
+                  label: 'Orders',
+                  value: '!',
+                );
+              }
+
+              final orders = (snapshot.hasData && snapshot.data != null)
+                  ? snapshot.data!
+                  : <OrderModel>[];
+
+              final nonCancelled =
+                  orders.where((o) => o.status != OrderStatus.cancelled).toList();
+              final avgOrderValue = nonCancelled.isEmpty
+                  ? 0.0
+                  : nonCancelled.fold(0.0, (sum, o) => sum + o.total) / nonCancelled.length;
+
+              // Orders come back newest-first from the repository, so
+              // the first entry is the most recent order regardless
+              // of how many there are.
+              final lastOrder = orders.isNotEmpty ? orders.first : null;
+
+              final memberSince = user?.metadata.creationTime;
+
+              return Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatItem(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'Orders',
+                        value: orders.length.toString(),
+                      ),
+                      _buildStatItem(
+                        icon: Icons.payments_outlined,
+                        label: 'Avg. order value',
+                        value: nonCancelled.isEmpty
+                            ? '\u2014'
+                            : '\u20b9${avgOrderValue.toStringAsFixed(0)}',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatItem(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Member since',
+                        value: memberSince != null
+                            ? _formatMonthYear(memberSince)
+                            : '\u2014',
+                      ),
+                      _buildLastOrderStatItem(lastOrder),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileOptions() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10.0,
-            offset: const Offset(0, 2),
+  String _formatMonthYear(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  Widget _buildLastOrderStatItem(OrderModel? lastOrder) {
+    if (lastOrder == null) {
+      return _buildStatItem(
+        icon: Icons.history,
+        label: 'Last order',
+        value: '\u2014',
+      );
+    }
+    return Column(
+      children: [
+        const Icon(Icons.history, color: AppColors.brand, size: 24.0),
+        const SizedBox(height: 8.0),
+        StatusBadge(status: lastOrder.status),
+        const SizedBox(height: 4.0),
+        const Text(
+          'Last order',
+          style: TextStyle(fontSize: 14.0, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: AppColors.brand,
+          size: 24.0,
+        ),
+        const SizedBox(height: 8.0),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20.0,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
-        ],
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14.0,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOrderHistorySection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildProfileOption(
-            icon: Icons.shopping_bag_outlined,
-            title: 'My Orders',
-            subtitle: 'View order history',
-            onTap: () => Get.to(() => const AllOrdersScreen()),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: AppColors.brandTintBg,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: const Icon(
+                      Icons.shopping_bag_outlined,
+                      color: AppColors.brand,
+                      size: 20.0,
+                    ),
+                  ),
+                  const SizedBox(width: 12.0),
+                  const Text(
+                    'Order History',
+                    style: TextStyle(
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              // FIX: AllOrdersScreen existed in the codebase but had no
+              // live entry point anywhere in the app - a customer with
+              // more than 5 orders had no way to reach the rest. This
+              // link is the fix.
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AllOrdersScreen()),
+                ),
+                child: const Text('View All'),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20.0),
+          
+          // Orders List
+          StreamBuilder<List<OrderModel>>(
+            stream: user != null
+              ? orderRepository.streamOrdersForCustomer(user!.uid, limit: 5)
+              : null,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+                    ),
+                  ),
+                );
+              }
+
+              // FIX: this used to only check hasData, so a genuine
+              // Firestore error on this account's orders query (missing
+              // index, permission denial, etc.) silently rendered the
+              // exact same "No orders found!" UI as a truly empty
+              // account - indistinguishable to the user, and to us
+              // debugging it. Show the real error instead.
+              if (snapshot.hasError) {
+                return _buildOrderErrorState(snapshot.error.toString());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return _buildEmptyOrderState();
+              }
+
+              return Column(
+                children: snapshot.data!.map((order) {
+                  return _buildOrderItem(order);
+                }).toList(),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8.0),
-        decoration: BoxDecoration(
-          color: AppConstant.appMainColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        child: Icon(
-          icon,
-          color: AppConstant.appMainColor,
-          size: 20.0,
-        ),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16.0),
-      onTap: onTap,
+  Widget _buildOrderErrorState(String error) {
+    // Message shown deliberately, not logged-only: this text is what
+    // lets us actually diagnose the real cause instead of guessing.
+    return AppErrorState(
+      title: 'Could not load your orders',
+      message: error,
     );
   }
 
-  Widget _buildDivider() {
-    return Divider(
-      height: 1.0,
-      color: Colors.grey.shade200,
-      indent: 56.0,
+  Widget _buildEmptyOrderState() {
+    return const AppEmptyState(
+      icon: Icons.shopping_bag_outlined,
+      title: 'No orders yet',
+      message: 'Your order history will appear here.',
+    );
+  }
+
+  Widget _buildOrderItem(OrderModel order) {
+    final displayNumber = order.orderNumber.isNotEmpty
+        ? order.orderNumber
+        : (order.orderId.length >= 8
+            ? order.orderId.substring(0, 8)
+            : order.orderId);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OrderDetailScreen(order: order),
+        ),
+      ),
+      child: Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: AppColors.surfaceBorder,
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: AppColors.brandTintBg,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: const Icon(
+              Icons.receipt_long,
+              color: AppColors.brand,
+              size: 20.0,
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Order #$displayNumber',
+                  style: const TextStyle(
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                StatusBadge(status: order.status),
+              ],
+            ),
+          ),
+          Text(
+            '₹${order.total.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 14.0,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+      ),
     );
   }
 
   Widget _buildAccountActions() {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10.0,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildProfileOption(
-            icon: Icons.help_outline,
-            title: 'Help & Support',
-            subtitle: 'Get assistance',
-            onTap: () => _showSupportOptions(),
+          const Text(
+            'Account actions',
+            style: TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
-          _buildDivider(),
-          _buildProfileOption(
-            icon: Icons.info_outline,
-            title: 'About',
-            subtitle: 'App version and info',
-            onTap: () => _showAboutDialog(),
-          ),
-          _buildDivider(),
-          _buildProfileOption(
+          
+          const SizedBox(height: 16.0),
+          
+          // Sign Out Button
+          _buildActionButton(
             icon: Icons.logout,
-            title: 'Logout',
+            title: 'Sign Out',
             subtitle: 'Sign out of your account',
-            onTap: () => _showLogoutDialog(),
+            onTap: () => _showSignOutDialog(),
           ),
-          _buildDivider(),
-          _buildProfileOption(
-            icon: Icons.delete_forever_outlined,
+          
+          const SizedBox(height: 12.0),
+          
+          // Delete Account Button
+          _buildActionButton(
+            icon: Icons.delete_forever,
             title: 'Delete Account',
             subtitle: 'Permanently delete your account',
             onTap: () => _showDeleteAccountDialog(),
+            isDestructive: true,
           ),
         ],
       ),
     );
   }
 
-  void _showSupportOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Container(
-              margin: const EdgeInsets.only(top: 12.0),
-              width: 40.0,
-              height: 4.0,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2.0),
-              ),
-            ),
-            
-            const SizedBox(height: 20.0),
-            
-            // Title
-            const Text(
-              'Help & Support',
-              style: TextStyle(
-                fontSize: 20.0,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            
-            const SizedBox(height: 20.0),
-            
-            // Support Options
-            _buildSupportOption(
-              icon: Icons.phone,
-              title: 'Call Us/WhatsApp',
-              subtitle: '+91 9830464031',
-              onTap: () {
-                Get.back();
-                _showContactOptions();
-              },
-            ),
-            
-            _buildSupportOption(
-              icon: Icons.email,
-              title: 'Email',
-              subtitle: 'support@sundergarments.com',
-              onTap: () {
-                Get.back();
-                // Add email functionality
-              },
-            ),
-            
-            const SizedBox(height: 20.0),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSupportOption({
+  Widget _buildActionButton({
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    bool isDestructive = false,
   }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8.0),
-        decoration: BoxDecoration(
-          color: AppConstant.appMainColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        child: Icon(
-          icon,
-          color: AppConstant.appMainColor,
-          size: 20.0,
-        ),
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle),
+    return InkWell(
       onTap: onTap,
-    );
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('About Sunder Garments'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: isDestructive ? AppColors.dangerBg : AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: isDestructive ? AppColors.dangerFg.withOpacity(0.3) : AppColors.surfaceBorder,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
           children: [
-            Text('Version: 1.0.0'),
-            SizedBox(height: 8.0),
-            Text('Sunder Garments - Your trusted clothing partner'),
-            SizedBox(height: 8.0),
-            Text('© 2024 Sunder Garments. All rights reserved.'),
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: isDestructive 
+                  ? AppColors.dangerBg
+                  : AppColors.brandTintBg,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Icon(
+                icon,
+                color: isDestructive ? AppColors.dangerFg : AppColors.brand,
+                size: 20.0,
+              ),
+            ),
+            const SizedBox(width: 12.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16.0,
+                      fontWeight: FontWeight.bold,
+                      color: isDestructive ? AppColors.dangerFg : AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14.0,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: isDestructive ? AppColors.dangerFg : AppColors.textSecondary,
+              size: 16.0,
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showLogoutDialog() {
+  void _showSignOutDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            onPressed: () async {
+          TextButton(
+            onPressed: () {
               Navigator.pop(context);
-              await FirebaseAuth.instance.signOut();
-              Get.offAll(() => WelcomeScreen());
+              _signOut();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Logout'),
+            child: const Text('Sign Out'),
           ),
         ],
       ),
@@ -413,242 +613,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.red.shade700,
-              size: 28.0,
-            ),
-            const SizedBox(width: 8.0),
-            const Text('Delete Account'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Are you sure you want to delete your account?',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16.0,
-              ),
-            ),
-            const SizedBox(height: 16.0),
-            const Text(
-              'This action is permanent and cannot be undone. All your data will be deleted:',
-            ),
-            const SizedBox(height: 8.0),
-            _buildDeleteInfoItem('• Your profile information'),
-            _buildDeleteInfoItem('• Your order history'),
-            _buildDeleteInfoItem('• Your shopping cart'),
-            _buildDeleteInfoItem('• All saved preferences'),
-            const SizedBox(height: 16.0),
-            Container(
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(8.0),
-                border: Border.all(color: Colors.red.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Colors.red.shade700,
-                    size: 20.0,
-                  ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: Text(
-                      'You will need to create a new account to use the app again.',
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 12.0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to delete your account? This action cannot be undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _showFinalDeleteConfirmation();
+              _deleteAccount();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Continue'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.dangerFg),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDeleteInfoItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: Colors.grey.shade700,
-          fontSize: 14.0,
-        ),
-      ),
-    );
-  }
-
-  void _showFinalDeleteConfirmation() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Final Confirmation',
-          style: TextStyle(
-            color: Colors.red,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'This is your last chance to cancel.',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16.0,
-              ),
-            ),
-            SizedBox(height: 12.0),
-            Text(
-              'Once you confirm, your account and all associated data will be permanently deleted.',
-            ),
-            SizedBox(height: 12.0),
-            Text(
-              'Do you want to proceed?',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(fontSize: 16.0),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _performAccountDeletion();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 12.0,
-              ),
-            ),
-            child: const Text(
-              'Delete My Account',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _performAccountDeletion() async {
-    final bool success = await DeleteAccountService.deleteUserAccount();
-    
-    if (success) {
-      // Navigate to welcome screen after successful deletion
+  void _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      await GoogleSignIn().signOut();
       Get.offAll(() => WelcomeScreen());
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to sign out: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
-    // If deletion fails, user stays on the same screen
-    // Error message is already shown by the service
   }
 
-  void _showContactOptions() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Contact Options'),
-          content: const Text('How would you like to contact us?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _makePhoneCall();
-              },
-              child: const Text('Call'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _openWhatsApp();
-              },
-              child: const Text('WhatsApp'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
+  void _deleteAccount() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Delete user data from Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .delete();
+        
+        // Delete user account
+        await user.delete();
+        
+        Get.offAll(() => WelcomeScreen());
+        Get.snackbar(
+          'Success',
+          'Account deleted successfully',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
         );
-      },
-    );
-  }
-
-  Future<void> _makePhoneCall() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+919830464031');
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
-    } else {
-      _showErrorSnackBar('Could not make phone call');
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete account: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
-  }
-
-  Future<void> _openWhatsApp() async {
-    final String phoneNumber = '+919830464031';
-    final String message = 'Hello Sunder Garments, I need support.';
-    final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}');
-    
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri);
-    } else {
-      _showErrorSnackBar('Could not open WhatsApp');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
   }
 }
