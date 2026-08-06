@@ -2,8 +2,9 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/models/order-item-model.dart';
+import 'package:e_comm/models/order-model.dart';
 import 'package:e_comm/repositories/order-repository.dart';
-import 'package:e_comm/screens/user-panel/main-screen.dart';
+import 'package:e_comm/screens/user-panel/new-main-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -11,55 +12,52 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// Consolidated WhatsApp function for multiple products - previously
-// this only messaged about one product with no order total; now
-// matches the full order the same way Android's app does.
-Future<void> openConsolidatedWhatsApp(List<Map<String, dynamic>> orderItems,
-    String customerName, String customerPhone) async {
+/// Redirects to WhatsApp with a pre-filled order-summary message
+/// addressed to the business's own number - the customer just taps
+/// Send, and the full order (number, every item, quantities, total,
+/// delivery address) lands straight in the business's WhatsApp. Per
+/// direct decision: not a silent, fully-automated send (that needs
+/// the real WhatsApp Business API - Meta verification, pre-approved
+/// templates, real setup time), this trades a one-tap customer action
+/// for something that works today with no new accounts.
+Future<void> _redirectToWhatsAppOrderSummary(OrderModel order) async {
+  const businessNumber = '917850078100';
+
+  final buffer = StringBuffer();
+  buffer.writeln('New order placed!');
+  buffer.writeln();
+  buffer.writeln('Order: ${order.orderNumber}');
+  buffer.writeln();
+  buffer.writeln('Customer: ${order.customerName}');
+  buffer.writeln('Phone: ${order.customerPhone}');
+  buffer.writeln('Delivery address: ${order.customerAddress}');
+  buffer.writeln();
+  buffer.writeln('Items:');
+  for (final item in order.items) {
+    final variant = [item.size, item.color]
+        .where((v) => v != null && v.isNotEmpty)
+        .join(' / ');
+    buffer.writeln(
+      '\u2022 ${item.productName}${variant.isNotEmpty ? ' ($variant)' : ''} '
+      '\u00d7 ${item.quantity} - \u20b9${item.lineTotal.toStringAsFixed(2)}',
+    );
+  }
+  buffer.writeln();
+  buffer.writeln('Total: \u20b9${order.total.toStringAsFixed(2)}');
+
+  final uri = Uri.parse(
+    'https://wa.me/$businessNumber?text=${Uri.encodeComponent(buffer.toString())}',
+  );
+
   try {
-    final number = "+919830464031";
-
-    String message = "ORDER CONFIRMATION!\n\n";
-    message += "Hi, $customerName just placed an order!\n";
-    message += "Order details:\n";
-
-    double grandTotal = 0;
-
-    for (int i = 0; i < orderItems.length; i++) {
-      var item = orderItems[i];
-      double itemTotal =
-          double.parse(item['salePrice'].toString()) * item['productQuantity'];
-      grandTotal += itemTotal;
-
-      message += "• Product: ${item['productName']}\n";
-      message += "• ID: ${item['productId']}\n";
-      message += "• Price: ₹${item['salePrice']}\n";
-      message += "• Quantity: ${item['productQuantity']}\n";
-      message += "• Total: ₹$itemTotal\n\n";
-    }
-
-    message += "GRAND TOTAL: ₹$grandTotal";
-
-    final url = 'https://wa.me/$number?text=${Uri.encodeComponent(message)}';
-
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-    } else {
-      final webUrl =
-          'https://web.whatsapp.com/send?phone=$number&text=${Uri.encodeComponent(message)}';
-      if (await canLaunchUrl(Uri.parse(webUrl))) {
-        await launchUrl(
-          Uri.parse(webUrl),
-          mode: LaunchMode.externalApplication,
-        );
-      }
-    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   } catch (e) {
-    print('WhatsApp launch error: $e');
-    // Don't throw error - WhatsApp failure shouldn't prevent order completion
+    print('WhatsApp order-summary redirect failed: $e');
+    // A customer without WhatsApp installed (or who dismisses it)
+    // shouldn't lose their already-successful order over this - the
+    // order is already saved by the time this runs, this is a
+    // secondary notification channel, not the order confirmation
+    // itself.
   }
 }
 
@@ -108,7 +106,7 @@ void placeOrder({
       return;
     }
 
-    List<Map<String, dynamic>> orderItemsForWhatsApp = [];
+    // Build the real order items (new schema) from the cart documents.
     List<OrderItemModel> orderItems = [];
 
     for (var doc in documents) {
@@ -120,8 +118,6 @@ void placeOrder({
           data['productQuantity'] == null) {
         throw 'Invalid product data in cart';
       }
-
-      orderItemsForWhatsApp.add(data);
 
       final unitPrice = double.tryParse(data['salePrice'].toString()) ?? 0.0;
       final quantity = (data['productQuantity'] as num?)?.toInt() ?? 1;
@@ -142,12 +138,12 @@ void placeOrder({
       ));
     }
 
-    // Create ONE real order for the whole cart. This also fixes a
-    // second bug specific to this file: the old code had a nested
-    // loop that wrote every order document documents.length times
-    // over (e.g. 3 cart items meant 9 redundant writes instead of 3).
+    // Create ONE real order for the whole cart - this is the actual
+    // fix: previously every cart item became its own disconnected
+    // document, and the customer's top-level order record got
+    // overwritten on every single checkout.
     final orderRepository = OrderRepository();
-    await orderRepository.createOrder(
+    final createdOrder = await orderRepository.createOrder(
       customerId: user.uid,
       customerName: customerName,
       customerPhone: customerPhone,
@@ -156,6 +152,8 @@ void placeOrder({
       items: orderItems,
     );
 
+    // Only clear the cart after the order has been successfully
+    // created, not interleaved with per-item writes as before.
     for (var doc in documents) {
       try {
         await FirebaseFirestore.instance
@@ -167,17 +165,17 @@ void placeOrder({
             .timeout(Duration(seconds: 30));
       } catch (e) {
         print('Error deleting cart item ${doc.id}: $e');
+        // Don't fail the whole checkout just because cart cleanup had
+        // an issue - the order itself already succeeded.
       }
     }
 
-    if (orderItemsForWhatsApp.isNotEmpty) {
-      try {
-        await openConsolidatedWhatsApp(
-            orderItemsForWhatsApp, customerName, customerPhone);
-      } catch (e) {
-        print('WhatsApp notification failed: $e');
-      }
-    }
+    // Redirect to WhatsApp with the full order summary pre-filled,
+    // addressed to the business's own number - customer just taps
+    // Send. Runs before the success snackbar/navigation so the
+    // customer sees WhatsApp open right after their order is
+    // confirmed, not after being routed back to Home first.
+    await _redirectToWhatsAppOrderSummary(createdOrder);
 
     print("Order Confirmed Successfully");
     Get.snackbar(
@@ -189,7 +187,11 @@ void placeOrder({
     );
 
     EasyLoading.dismiss();
-    Get.offAll(() => MainScreen());
+    // iOS doesn't have Android's HomeRouter (that pattern gates the
+    // whole app behind sign-in first, which conflicts with iOS's
+    // deliberate guest-browsing architecture) - route straight to the
+    // actual live Home screen instead.
+    Get.offAll(() => const NewMainScreen());
   } catch (e) {
     print("Order placement error: $e");
     EasyLoading.dismiss();
