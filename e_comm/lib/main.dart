@@ -2,7 +2,6 @@ import 'package:e_comm/firebase_options.dart';
 import 'package:e_comm/screens/auth-ui/splash-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:e_comm/theme/app_theme.dart';
-import 'package:e_comm/theme/theme_bridge.dart';
 import 'package:e_comm/services/navigation-service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -21,9 +20,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize theme bridge
-  ThemeBridge.init();
-  
   // Initialize NavigationService for handling authentication redirects
   Get.put(NavigationService());
   
@@ -38,9 +34,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false, 
       title: AppConstant.appMainName,
-      // Use the theme bridge to maintain backward compatibility
-      theme: ThemeBridge.theme,
-      // Keep the app's original look and feel
+      theme: AppTheme.light,
       themeMode: ThemeMode.light,
       home: const SplashScreen(),
       builder: EasyLoading.init(),
