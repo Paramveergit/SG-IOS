@@ -19,11 +19,13 @@ class NavigationService extends GetxController {
   
   // Pending add-to-cart action
   ProductModel? _pendingAddToCartProduct;
+  int _pendingAddToCartQuantity = 1;
   
   // Clear all pending actions
   void clearPendingActions() {
     _pendingScreen = null;
     _pendingAddToCartProduct = null;
+    _pendingAddToCartQuantity = 1;
   }
   
   // Set pending navigation (for profile/cart access)
@@ -32,8 +34,16 @@ class NavigationService extends GetxController {
   }
   
   // Set pending add-to-cart action
-  void setPendingAddToCart(ProductModel product) {
+  // FIX: this used to silently drop whatever quantity the guest had
+  // actually selected on the product page (defaulting the re-executed
+  // add-to-cart to a hardcoded 1) - meaningful now that quantity
+  // represents MOQ lots, not individual pieces. A guest selecting 2
+  // lots, getting redirected to sign in, then signing in would
+  // silently end up with 1 piece in their cart instead of what they
+  // actually chose. Now takes and stores the real quantity.
+  void setPendingAddToCart(ProductModel product, {int quantity = 1}) {
     _pendingAddToCartProduct = product;
+    _pendingAddToCartQuantity = quantity;
   }
   
   // Execute pending actions after successful login
@@ -42,10 +52,11 @@ class NavigationService extends GetxController {
       // Handle pending add-to-cart first (higher priority)
       if (_pendingAddToCartProduct != null) {
         final product = _pendingAddToCartProduct!;
+        final quantity = _pendingAddToCartQuantity;
         clearPendingActions();
         
         // Execute add-to-cart and return to previous screen
-        await _executeAddToCart(product);
+        await _executeAddToCart(product, quantity);
         return;
       }
       
@@ -72,7 +83,7 @@ class NavigationService extends GetxController {
   }
   
   // Execute add-to-cart action
-  Future<void> _executeAddToCart(ProductModel product) async {
+  Future<void> _executeAddToCart(ProductModel product, int quantity) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -86,7 +97,7 @@ class NavigationService extends GetxController {
         return;
       }
 
-      await _addToCartHelper(product, user.uid);
+      await _addToCartHelper(product, user.uid, quantity);
       
       Get.snackbar(
         'Success',
@@ -111,7 +122,7 @@ class NavigationService extends GetxController {
   }
   
   // Helper method to add item to cart (extracted from existing code)
-  Future<void> _addToCartHelper(ProductModel product, String userId) async {
+  Future<void> _addToCartHelper(ProductModel product, String userId, int quantity) async {
     final documentReference = FirebaseFirestore.instance
         .collection('cart')
         .doc(userId)
@@ -122,7 +133,7 @@ class NavigationService extends GetxController {
 
     if (snapshot.exists) {
       int currentQuantity = snapshot['productQuantity'];
-      int updatedQuantity = currentQuantity + 1;
+      int updatedQuantity = currentQuantity + quantity;
       double totalPrice = double.parse(product.isSale
               ? product.salePrice
               : product.fullPrice) *
@@ -151,10 +162,16 @@ class NavigationService extends GetxController {
         productDescription: product.productDescription,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        productQuantity: 1,
+        productQuantity: quantity,
         productTotalPrice: double.parse(product.isSale
             ? product.salePrice
-            : product.fullPrice),
+            : product.fullPrice) * quantity,
+        // FIX: this field didn't exist on this code path at all before -
+        // silently defaulted to CartModel's fallback of 1, which would
+        // have broken lot-based quantity stepping for any item added
+        // to cart via this specific guest-then-signed-in path, even
+        // though it worked correctly everywhere else.
+        moq: product.moq,
       );
 
       await documentReference.set(cartModel.toMap());
