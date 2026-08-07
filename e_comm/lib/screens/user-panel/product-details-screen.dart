@@ -5,7 +5,6 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e_comm/models/product-model.dart';
 import 'package:e_comm/screens/user-panel/cart-screen.dart' as cart_screen;
-import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +13,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../controllers/rating-controller.dart';
 import '../../models/cart-model.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
+import '../../theme/app_radius.dart';
+import '../../widgets/cart_icon_badge.dart';
+import '../../widgets/stock_indicator.dart';
+import '../../models/stock-status.dart';
+import '../../utils/auth-guard.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   ProductModel productModel;
@@ -128,35 +134,35 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
     if (rows.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8.0),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: AppColors.surfaceBorder),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Column(
         children: rows.asMap().entries.map((entry) {
           final i = entry.key;
           final row = entry.value;
           return Container(
-            color: i.isEven ? Colors.grey.shade50 : Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            color: i.isEven ? AppColors.surfaceMuted : AppColors.surface,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             child: Row(
               children: [
                 SizedBox(
                   width: 110,
                   child: Text(
                     row.key,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13.0,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     row.value,
-                    style: TextStyle(fontSize: 13.0, color: Colors.grey.shade700),
+                    style: const TextStyle(fontSize: 13.0, color: AppColors.textSecondary),
                   ),
                 ),
               ],
@@ -180,9 +186,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
               parsedDetails['quantity']!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16.0,
-                color: Colors.grey.shade700,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -194,9 +200,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
               parsedDetails['size']!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16.0,
-                color: Colors.grey.shade700,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -208,9 +214,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
               parsedDetails['otherInfo']!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14.0,
-                color: Colors.grey.shade600,
+                color: AppColors.textSecondary,
                 height: 1.4,
               ),
             ),
@@ -223,8 +229,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
   void initState() {
     super.initState();
     
-    // Initialize quantity controller with empty text
-    _quantityController = TextEditingController();
+    // Default quantity is one full lot (MOQ pieces), not one piece -
+    // per direct clarification: the qty stepper represents lots, and
+    // a fresh product view should start at "1 lot" rather than
+    // "1 piece" (which would be a fraction of a lot for a wholesale
+    // MOQ product and make no practical sense to actually order).
+    final int startingQuantity = widget.productModel.moq > 0 ? widget.productModel.moq : 1;
+    _selectedQuantity = startingQuantity;
+    _quantityController = TextEditingController(text: startingQuantity.toString());
     
     // Initialize shake animation
     _shakeController = AnimationController(
@@ -246,7 +258,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
     );
     _highlightAnimation = ColorTween(
       begin: Colors.transparent,
-      end: Colors.red.withOpacity(0.3),
+      end: AppColors.dangerBg,
     ).animate(CurvedAnimation(
       parent: _highlightController,
       curve: Curves.easeInOut,
@@ -282,63 +294,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
     });
   }
   
-  Widget _buildCartIconWithBadge() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: user != null 
-          ? FirebaseFirestore.instance
-              .collection('cart')
-              .doc(user!.uid)
-              .collection('cartOrders')
-              .snapshots()
-          : null,
-      builder: (context, snapshot) {
-        int cartItemCount = 0;
-        if (snapshot.hasData && snapshot.data != null) {
-          cartItemCount = snapshot.data!.docs.length;
-        }
-        
-        return Stack(
-          children: [
-            GestureDetector(
-              onTap: () => Get.to(() => cart_screen.CartScreen()),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Icon(
-                  Icons.shopping_cart,
-                  color: AppConstant.appTextColor,
-                ),
-              ),
-            ),
-            if (cartItemCount > 0)
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  padding: EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  constraints: BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    cartItemCount.toString(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
   
   Widget _buildQuantitySelector() {
     return AnimatedBuilder(
@@ -354,29 +309,36 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
             children: [
               Text(
                 'Qty: ',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16.0,
                   fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade700,
+                  color: AppColors.textSecondary,
                 ),
               ),
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _quantityError ? Colors.red : Colors.black,
+                    color: _quantityError ? AppColors.dangerFg : AppColors.surfaceBorder,
                     width: 1.0,
                   ),
-                  borderRadius: BorderRadius.circular(4.0),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Minus button
+                    // Minus button - steps by one full lot (MOQ pieces)
+                    // at a time, per direct clarification. Floors at
+                    // one lot via the stepper - going below that is
+                    // still possible by typing a custom number directly
+                    // into the field below, which stays completely
+                    // free-form for exactly that "partial/custom
+                    // quantity" case.
                     GestureDetector(
                       onTap: () {
-                        if (_selectedQuantity != null && _selectedQuantity! > 1) {
+                        final moq = widget.productModel.moq > 0 ? widget.productModel.moq : 1;
+                        if (_selectedQuantity != null && _selectedQuantity! > moq) {
                           setState(() {
-                            _selectedQuantity = _selectedQuantity! - 1;
+                            _selectedQuantity = _selectedQuantity! - moq;
                             _quantityController.text = _selectedQuantity.toString();
                             _quantityError = false;
                           });
@@ -386,19 +348,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: (_selectedQuantity != null && _selectedQuantity! > 1)
-                              ? Colors.black 
-                              : Colors.grey.shade300,
-                          borderRadius: BorderRadius.only(
+                          color: (_selectedQuantity != null && _selectedQuantity! > (widget.productModel.moq > 0 ? widget.productModel.moq : 1))
+                              ? AppColors.textPrimary 
+                              : AppColors.surfaceMuted,
+                          borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(3),
                             bottomLeft: Radius.circular(3),
                           ),
                         ),
                         child: Icon(
                           Icons.remove,
-                          color: (_selectedQuantity != null && _selectedQuantity! > 1)
-                              ? Colors.white 
-                              : Colors.grey.shade500,
+                          color: (_selectedQuantity != null && _selectedQuantity! > (widget.productModel.moq > 0 ? widget.productModel.moq : 1))
+                              ? AppColors.textOnBrand 
+                              : AppColors.textSecondary,
                           size: 16,
                         ),
                       ),
@@ -407,10 +369,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                     Container(
                       width: 50,
                       height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
                         border: Border.symmetric(
-                          vertical: BorderSide(color: Colors.black, width: 1.0),
+                          vertical: BorderSide(color: AppColors.surfaceBorder, width: 1.0),
                         ),
                       ),
                       child: Center(
@@ -430,14 +392,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                             isDense: true,
                             hintText: 'Qty',
                             hintStyle: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: AppColors.textSecondary,
                               fontSize: 14,
                             ),
                           ),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16.0,
                             fontWeight: FontWeight.bold,
-                            color: AppConstant.appMainColor,
+                            color: AppColors.brand,
                             height: 1.0,
                           ),
                         onChanged: (value) {
@@ -459,11 +421,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                         ),
                       ),
                     ),
-                    // Plus button
+                    // Plus button - steps by one full lot (MOQ pieces)
                     GestureDetector(
                       onTap: () {
+                        final moq = widget.productModel.moq > 0 ? widget.productModel.moq : 1;
                         setState(() {
-                          _selectedQuantity = (_selectedQuantity ?? 0) + 1;
+                          _selectedQuantity = (_selectedQuantity ?? 0) + moq;
                           _quantityController.text = _selectedQuantity.toString();
                           _quantityError = false;
                         });
@@ -472,15 +435,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: AppConstant.appMainColor,
-                          borderRadius: BorderRadius.only(
+                          color: AppColors.brand,
+                          borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(3),
                             bottomRight: Radius.circular(3),
                           ),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.add,
-                          color: Colors.white,
+                          color: AppColors.textOnBrand,
                           size: 16,
                         ),
                       ),
@@ -495,20 +458,34 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
     );
   }
 
+  Widget _buildLotCaption() {
+    final moq = widget.productModel.moq > 0 ? widget.productModel.moq : 1;
+    final qty = _selectedQuantity ?? 0;
+    if (moq <= 1 || qty <= 0) return const SizedBox.shrink();
+
+    final isExactLots = qty % moq == 0;
+    final String caption = isExactLots
+        ? '${qty ~/ moq} lot${qty ~/ moq == 1 ? '' : 's'} of $moq pcs each'
+        : 'Custom quantity (MOQ is $moq pcs per lot)';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8.0, 4.0, 8.0, 0.0),
+      child: Text(
+        caption,
+        style: const TextStyle(fontSize: 12.0, color: AppColors.textSecondary),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     CalculateProductRatingController calculateProductRatingController = Get.put(
         CalculateProductRatingController(widget.productModel.productId));
     return Scaffold(
       appBar: AppBar(
-        iconTheme: IconThemeData(color: AppConstant.appTextColor),
-        backgroundColor: AppConstant.appMainColor,
-        title: Text(
-          "Product Details",
-          style: TextStyle(color: AppConstant.appTextColor),
-        ),
+        title: const Text("Product Details"),
         actions: [
-          _buildCartIconWithBadge(),
+          const CartIconWithBadge(),
         ],
       ),
       body: SingleChildScrollView(
@@ -536,9 +513,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                               placeholder: (context, url) => Center(
                                 child: CupertinoActivityIndicator(),
                               ),
-                              errorWidget: (context, url, error) => Icon(
+                              errorWidget: (context, url, error) => const Icon(
                                 Icons.error,
-                                color: Colors.red,
+                                color: AppColors.dangerFg,
                               ),
                             ),
                           ),
@@ -547,17 +524,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                     },
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10.0),
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        width: Get.width - 20,
-                        placeholder: (context, url) => ColoredBox(
-                          color: Colors.white,
-                          child: Center(
-                            child: CupertinoActivityIndicator(),
+                      child: Container(
+                        // FIX: was BoxFit.cover inside a fixed 1.5
+                        // (landscape) aspectRatio box - every portrait
+                        // fashion photo (which is nearly all of them)
+                        // got its top/bottom cropped, cutting off heads.
+                        // BoxFit.contain guarantees the full image is
+                        // always visible regardless of its real aspect
+                        // ratio, with a neutral fill behind it instead
+                        // of jarring blank bars.
+                        color: AppColors.surfaceMuted,
+                        child: CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.contain,
+                          width: Get.width - 20,
+                          placeholder: (context, url) => const ColoredBox(
+                            color: AppColors.surfaceMuted,
+                            child: Center(
+                              child: CupertinoActivityIndicator(),
+                            ),
                           ),
+                          errorWidget: (context, url, error) => Icon(Icons.error),
                         ),
-                        errorWidget: (context, url, error) => Icon(Icons.error),
                       ),
                     ),
                   );
@@ -565,7 +553,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                 options: CarouselOptions(
                   scrollDirection: Axis.horizontal,
                   autoPlay: true,
-                  aspectRatio: 1.5,
+                  aspectRatio: 0.8,
                   viewportFraction: 0.9,
                   enlargeCenterPage: true,
                 ),
@@ -574,12 +562,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                 height: Get.height / 20,
               ),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
                 child: Card(
-                  elevation: 5.0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
                   child: Column(
                     children: [
                       Padding(
@@ -588,15 +572,31 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                           alignment: Alignment.topLeft,
                           child: Text(
                             widget.productModel.productName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 24.0,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                              color: AppColors.textPrimary,
                               letterSpacing: 0.5,
                             ),
                           ),
                         ),
                       ),
+                      // GUARD: same as the list tile - only show this
+                      // for products that actually have tracked
+                      // variants, otherwise a product with no
+                      // inventory data set up yet would wrongly show
+                      // as Out of Stock.
+                      if (widget.productModel.variants.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: StockIndicator(
+                              status: widget.productModel.stockStatus,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(8.0, 0.0, 8.0, 4.0),
                         child: Container(
@@ -607,18 +607,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                   children: [
                                     Text(
                                       "₹${widget.productModel.salePrice}",
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 20.0,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.green.shade700,
+                                        color: AppColors.successFg,
                                       ),
                                     ),
-                                    SizedBox(width: 8.0),
+                                    const SizedBox(width: 8.0),
                                     Text(
                                       "₹${widget.productModel.fullPrice}",
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 16.0,
-                                        color: Colors.grey.shade500,
+                                        color: AppColors.textSecondary,
                                         decoration: TextDecoration.lineThrough,
                                       ),
                                     ),
@@ -626,10 +626,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                 )
                               : Text(
                                   "₹${widget.productModel.fullPrice}",
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 20.0,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade700,
+                                    color: AppColors.successFg,
                                   ),
                                 ),
                         ),
@@ -648,19 +648,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                     widget.productModel.categoryId, 
                                     widget.productModel.categoryName
                                   ),
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 16.0,
-                                    color: Colors.grey.shade700,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
                             ),
-                            SizedBox(width: 16.0),
+                            const SizedBox(width: 16.0),
                             _buildQuantitySelector(),
                           ],
                         ),
                       ),
+                      _buildLotCaption(),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(8.0, 0.0, 8.0, 4.0),
                         child: _buildSpecsTable(),
@@ -679,6 +680,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                           child: AnimatedBuilder(
                             animation: _shakeAnimation,
                             builder: (context, child) {
+                              final isOutOfStock = widget.productModel.variants.isNotEmpty &&
+                                  widget.productModel.stockStatus == StockStatus.outOfStock;
                               return Transform.translate(
                                 offset: Offset(_shakeAnimation.value * 
                                     ((_shakeController.value * 4).round() % 2 == 0 ? 1 : -1), 0),
@@ -687,12 +690,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                     width: Get.width * 0.7,
                                     height: Get.height / 16,
                                     decoration: BoxDecoration(
-                                      color: AppConstant.appScendoryColor,
-                                      borderRadius: BorderRadius.circular(20.0),
+                                      color: isOutOfStock ? AppColors.surfaceMuted : AppColors.brand,
+                                      borderRadius: BorderRadius.circular(AppRadius.lg),
                                     ),
                                     child: TextButton(
-                                      child: _isAddingToCart
-                                        ? Row(
+                                      child: isOutOfStock
+                                        ? const Text(
+                                            "Out of stock",
+                                            style: TextStyle(color: AppColors.textSecondary),
+                                          )
+                                        : _isAddingToCart
+                                        ? const Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               SizedBox(
@@ -701,7 +709,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                                 child: CircularProgressIndicator(
                                                   strokeWidth: 2,
                                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                                    AppConstant.appTextColor,
+                                                    AppColors.textOnBrand,
                                                   ),
                                                 ),
                                               ),
@@ -709,18 +717,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                               Text(
                                                 "Adding...",
                                                 style: TextStyle(
-                                                  color: AppConstant.appTextColor,
+                                                  color: AppColors.textOnBrand,
                                                 ),
                                               ),
                                             ],
                                           )
-                                        : Text(
+                                        : const Text(
                                             "Add to cart",
                                             style: TextStyle(
-                                              color: AppConstant.appTextColor,
+                                              color: AppColors.textOnBrand,
                                             ),
                                           ),
-                                      onPressed: _isAddingToCart ? null : () async {
+                                      onPressed: isOutOfStock ? null : (_isAddingToCart ? null : () async {
                                         // Check if quantity is valid (allow mass orders)
                                         if (_selectedQuantity == null || _selectedQuantity! < 1) {
                                           _triggerShakeAnimation();
@@ -729,6 +737,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                         
                                         // Prevent multiple taps
                                         if (_isAddingToCart) return;
+
+                                        // iOS supports guest browsing -
+                                        // a guest can view this whole
+                                        // screen, but adding to cart
+                                        // needs a real account. This
+                                        // used to force-unwrap user!.uid
+                                        // with no null check at all,
+                                        // which would crash for any
+                                        // guest who tapped this button.
+                                        // AuthGuard remembers the
+                                        // product and redirects to sign
+                                        // in - NavigationService
+                                        // automatically completes the
+                                        // add-to-cart and returns here
+                                        // once they're signed in.
+                                        if (user == null) {
+                                          AuthGuard.requireAuthForAddToCart(
+                                            widget.productModel,
+                                            quantity: _selectedQuantity!,
+                                          );
+                                          return;
+                                        }
                                         
                                         setState(() {
                                           _isAddingToCart = true;
@@ -767,7 +797,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
                                             });
                                           }
                                         }
-                                      },
+                                      }),
                                     ),
                                   ),
                                 ),
@@ -790,7 +820,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
   static Future<void> sendMessageOnWhatsApp({
     required ProductModel productModel,
   }) async {
-    final number = "+919830464031";
+    final number = "+917850078100";
     final message =
         // "Hello Sunder Garments \n I want to know about this product \n ${productModel.productName} \n ${productModel.productId}";
       "Hello Sunder Garments \n"
@@ -801,8 +831,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
 
     final url = 'https://wa.me/$number?text=${Uri.encodeComponent(message)}';
 
-    if (await canLaunch(url)) {
-      await launch(url);
+    // FIX: was using the deprecated canLaunch(String)/launch(String)
+    // API while every other WhatsApp/URL call in the app already uses
+    // canLaunchUrl(Uri)/launchUrl(Uri) - inconsistent, and the old API
+    // is on its way out of the package entirely.
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
     }
@@ -861,6 +896,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> with Ticker
         productTotalPrice: double.parse(widget.productModel.isSale
             ? widget.productModel.salePrice
             : widget.productModel.fullPrice) * quantityIncrement,
+        moq: widget.productModel.moq,
       );
 
       await documentReference.set(cartModel.toMap());

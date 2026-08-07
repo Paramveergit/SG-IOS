@@ -27,12 +27,12 @@ class AuthGuard {
   }
   
   // Check if user is authenticated for add-to-cart action
-  static bool requireAuthForAddToCart(dynamic product) {
+  static bool requireAuthForAddToCart(dynamic product, {int quantity = 1}) {
     final user = FirebaseAuth.instance.currentUser;
     
     if (user == null) {
       // Set pending add-to-cart action
-      NavigationService.instance.setPendingAddToCart(product);
+      NavigationService.instance.setPendingAddToCart(product, quantity: quantity);
       
       // Redirect to login screen
       Get.to(() => WelcomeScreen());
