@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../models/order-model.dart';
@@ -19,6 +18,7 @@ import 'order-detail-screen.dart';
 import 'all-orders-screen.dart';
 import '../auth-ui/welcome-screen.dart';
 import '../../utils/auth-guard.dart';
+import '../../services/delete-account-service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -651,33 +651,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _deleteAccount() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        // Delete user data from Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .delete();
-        
-        // Delete user account
-        await user.delete();
-        
-        Get.offAll(() => WelcomeScreen());
-        Get.snackbar(
-          'Success',
-          'Account deleted successfully',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete account: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+    // FIX: this used to only delete the users/{uid} Firestore doc and
+    // call user.delete() directly - no cart cleanup, no orders
+    // cleanup, no handling of Firebase's requires-recent-login error.
+    // iOS already has a dedicated DeleteAccountService built
+    // specifically for Apple's App Store Guideline 5.1.1(v) (mandatory
+    // in-app account deletion with full data removal) - this was
+    // ported from Android without noticing that service existed,
+    // which would have silently left cart/order data behind and
+    // broken the re-auth error message on real accounts. Using the
+    // real service instead.
+    final success = await DeleteAccountService.deleteUserAccount();
+    if (success) {
+      Get.offAll(() => WelcomeScreen());
     }
+    // On failure, DeleteAccountService already shows its own specific
+    // error snackbar (including the re-authentication-required case) -
+    // nothing more to do here.
   }
 }

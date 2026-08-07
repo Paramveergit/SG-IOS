@@ -121,23 +121,29 @@ class DeleteAccountService {
     }
   }
 
-  /// Delete all orders for the user
+  /// Delete all orders for the user.
+  //
+  // FIX: this used to query orders/{uid}/confirmOrders, a nested
+  // subcollection structure that doesn't match the actual current
+  // orders schema at all - orders live as flat documents directly
+  // under orders/{orderId}, filtered by a customerId field (same
+  // pattern OrderRepository uses everywhere else in the app). The old
+  // query would have matched zero documents every time, silently
+  // deleting nothing while still reporting success - a real problem
+  // in a feature specifically built for Apple's mandatory account-
+  // deletion requirement, where "deleted" needs to actually mean
+  // deleted.
   static Future<void> _deleteUserOrders(String uid) async {
     try {
-      // Delete all items in confirmOrders subcollection
-      final confirmOrdersSnapshot = await _firestore
+      final ordersSnapshot = await _firestore
           .collection('orders')
-          .doc(uid)
-          .collection('confirmOrders')
+          .where('customerId', isEqualTo: uid)
           .get();
 
-      for (var doc in confirmOrdersSnapshot.docs) {
+      for (var doc in ordersSnapshot.docs) {
         await doc.reference.delete();
       }
 
-      // Delete the orders parent document
-      await _firestore.collection('orders').doc(uid).delete();
-      
       print('Orders data deleted for user: $uid');
     } catch (e) {
       print('Error deleting orders data: $e');
