@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lottie/lottie.dart';
+import '../../theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,26 +20,40 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  // FIX: this used to be `User? user = FirebaseAuth.instance.currentUser;`
-  // - a synchronous snapshot captured the instant this widget was
-  // created, before Firebase had a chance to restore the persisted
-  // session from local storage. That's the same root cause behind
-  // "I have to sign in every time" on Android - the value was frozen
-  // as null even when a valid session was a moment away from being
-  // ready. No longer cached as a field; the real, settled value is
-  // fetched only when loggdin() actually needs it.
-
   @override
   void initState() {
     super.initState();
-    Timer(Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 3), () {
       loggdin(context);
     });
   }
 
   Future<void> loggdin(BuildContext context) async {
     try {
-      final User? user = await FirebaseAuth.instance.authStateChanges().first;
+      // Check the synchronous snapshot first, then fall back to
+      // watching a few auth-state events if that's null - same
+      // pattern applied to Android's equivalent check, after finding
+      // that trusting a single authStateChanges().first emission
+      // carries a real race on some devices. Narrower consequence
+      // here than on Android (both branches below still route a guest
+      // to NewMainScreen either way), but an admin account could
+      // still briefly land on the retailer view instead of the admin
+      // one if the race resolved wrong, so worth fixing the same way.
+      User? user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        User? resolved;
+        await for (final event in FirebaseAuth.instance
+            .authStateChanges()
+            .take(3)
+            .timeout(const Duration(milliseconds: 2500), onTimeout: (sink) => sink.close())) {
+          if (event != null) {
+            resolved = event;
+            break;
+          }
+        }
+        user = resolved;
+      }
 
       if (user != null) {
         final GetUserDataController getUserDataController =
@@ -51,8 +66,9 @@ class _SplashScreenState extends State<SplashScreen> {
           Get.offAll(() => NewMainScreen());
         }
       } else {
-        // Allow guest access to main screen - users can browse without authentication
-        // Authentication will be required only for account-based features (cart, profile, checkout)
+        // Guest browsing is allowed by design - only cart/profile/
+        // checkout require signing in, gated individually at those
+        // screens via AuthGuard.
         Get.offAll(() => NewMainScreen());
       }
     } catch (e) {
@@ -64,37 +80,29 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    //final size = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: AppConstant.appScendoryColor,
-      appBar: AppBar(
-        backgroundColor: AppConstant.appScendoryColor,
-        elevation: 0,
-      ),
-      body: Container(
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: Get.width,
-                alignment: Alignment.center,
-                child: Lottie.asset('assets/images/splash-icon.json'),
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(bottom: 20.0),
+      backgroundColor: AppColors.brandDark,
+      body: Column(
+        children: [
+          Expanded(
+            child: Container(
               width: Get.width,
               alignment: Alignment.center,
-              child: Text(
-                AppConstant.appPoweredBy,
-                style: TextStyle(
-                    color: AppConstant.appTextColor,
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.bold),
+              child: Lottie.asset('assets/images/splash-icon.json'),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20.0),
+            child: Text(
+              AppConstant.appPoweredBy,
+              style: const TextStyle(
+                color: AppColors.textOnBrand,
+                fontSize: 12.0,
+                fontWeight: FontWeight.bold,
               ),
-            )
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
