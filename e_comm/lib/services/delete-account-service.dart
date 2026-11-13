@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 // ignore_for_file: file_names
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -113,10 +114,8 @@ class DeleteAccountService {
 
       // Delete the cart parent document
       await _firestore.collection('cart').doc(uid).delete();
-      
-      print('Cart data deleted for user: $uid');
     } catch (e) {
-      print('Error deleting cart data: $e');
+      debugPrint('Error deleting cart data: $e');
       // Continue with deletion even if cart deletion fails
     }
   }
@@ -143,10 +142,8 @@ class DeleteAccountService {
       for (var doc in ordersSnapshot.docs) {
         await doc.reference.delete();
       }
-
-      print('Orders data deleted for user: $uid');
     } catch (e) {
-      print('Error deleting orders data: $e');
+      debugPrint('Error deleting orders data: $e');
       // Continue with deletion even if orders deletion fails
     }
   }
@@ -155,9 +152,8 @@ class DeleteAccountService {
   static Future<void> _deleteUserProfile(String uid) async {
     try {
       await _firestore.collection('users').doc(uid).delete();
-      print('User profile deleted for user: $uid');
     } catch (e) {
-      print('Error deleting user profile: $e');
+      debugPrint('Error deleting user profile: $e');
       // Continue with deletion even if profile deletion fails
     }
   }
@@ -175,7 +171,7 @@ class DeleteAccountService {
       // Firebase Auth handles it automatically
       
     } catch (e) {
-      print('Error signing out from providers: $e');
+      debugPrint('Error signing out from providers: $e');
       // Continue with deletion even if provider sign out fails
     }
   }

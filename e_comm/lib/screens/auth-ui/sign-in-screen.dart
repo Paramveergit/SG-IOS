@@ -1,6 +1,5 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, avoid_unnecessary_containers, unused_local_variable, unnecessary_null_comparison, file_names
 
-import 'package:e_comm/controllers/get-user-data-controller.dart';
 import 'package:e_comm/controllers/sign-in-controller.dart';
 import 'package:e_comm/screens/auth-ui/forget-password-screen.dart';
 import 'package:e_comm/screens/auth-ui/sign-up-screen.dart';
@@ -21,8 +20,6 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   final SignInController signInController = Get.put(SignInController());
-  final GetUserDataController getUserDataController =
-      Get.put(GetUserDataController());
   TextEditingController userEmail = TextEditingController();
   TextEditingController userPassword = TextEditingController();
 

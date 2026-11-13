@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import '../models/product-model.dart';
 import '../models/cart-model.dart';
 import '../screens/user-panel/new-main-screen.dart';
-import '../screens/user-panel/cart-screen.dart';
-import '../screens/user-panel/profile-screen.dart';
 
 class NavigationService extends GetxController {
   static NavigationService get instance => Get.find<NavigationService>();

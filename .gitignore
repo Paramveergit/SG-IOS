@@ -1,0 +1,5 @@
+*.p12
+*.cer
+*.mobileprovision
+*.certSigningRequest
+.DS_Store

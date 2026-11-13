@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing material and OS junk - never commit
+*.p12
+*.cer
+*.mobileprovision
+*.certSigningRequest
+*.jks
+*.keystore
+key.properties
+*.backup
+.DS_Store

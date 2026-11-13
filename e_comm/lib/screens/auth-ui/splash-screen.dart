@@ -2,7 +2,6 @@
 
 import 'dart:async';
 
-import 'package:e_comm/controllers/get-user-data-controller.dart';
 import 'package:e_comm/screens/user-panel/new-main-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -55,10 +54,6 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       if (user != null) {
-        final GetUserDataController getUserDataController =
-            Get.put(GetUserDataController());
-        var userData = await getUserDataController.getUserData(user.uid);
-
         // Admin accounts used to be routed to an empty "Admin Panel"
         // placeholder screen from the original codebase - no content,
         // no navigation, no sign-out, so the app looked frozen. Real
