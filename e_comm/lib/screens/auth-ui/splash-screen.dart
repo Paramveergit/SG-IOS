@@ -3,7 +3,6 @@
 import 'dart:async';
 
 import 'package:e_comm/controllers/get-user-data-controller.dart';
-import 'package:e_comm/screens/admin-panel/admin-main-screen.dart';
 import 'package:e_comm/screens/user-panel/new-main-screen.dart';
 import 'package:e_comm/utils/app-constant.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -60,11 +59,12 @@ class _SplashScreenState extends State<SplashScreen> {
             Get.put(GetUserDataController());
         var userData = await getUserDataController.getUserData(user.uid);
 
-        if (userData.isNotEmpty && userData[0]['isAdmin'] == true) {
-          Get.offAll(() => AdminMainScreen());
-        } else {
-          Get.offAll(() => NewMainScreen());
-        }
+        // Admin accounts used to be routed to an empty "Admin Panel"
+        // placeholder screen from the original codebase - no content,
+        // no navigation, no sign-out, so the app looked frozen. Real
+        // admin work happens in the separate Admin app; here every
+        // account, admin or not, just gets the normal retailer home.
+        Get.offAll(() => NewMainScreen());
       } else {
         // Guest browsing is allowed by design - only cart/profile/
         // checkout require signing in, gated individually at those

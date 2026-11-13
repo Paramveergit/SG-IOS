@@ -2,7 +2,6 @@
 
 import 'package:e_comm/controllers/get-user-data-controller.dart';
 import 'package:e_comm/controllers/sign-in-controller.dart';
-import 'package:e_comm/screens/admin-panel/admin-main-screen.dart';
 import 'package:e_comm/screens/auth-ui/forget-password-screen.dart';
 import 'package:e_comm/screens/auth-ui/sign-up-screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -131,15 +130,10 @@ class _SignInScreenState extends State<SignInScreen> {
                       return;
                     }
 
-                    var userData = await getUserDataController
-                        .getUserData(userCredential.user!.uid);
-
-                    if (userData.isNotEmpty && userData[0]['isAdmin'] == true) {
-                      Get.offAll(() => AdminMainScreen());
-                    }
-                    // Non-admin: navigation is already handled by
-                    // NavigationService inside signInController -
-                    // nothing more to do here.
+                    // Navigation is handled by NavigationService inside
+                    // signInController for every account (admin
+                    // accounts no longer get a separate placeholder
+                    // screen - see splash-screen.dart).
                   },
                   child: const Text('Sign in'),
                 ),
