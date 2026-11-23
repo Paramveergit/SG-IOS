@@ -36,23 +36,25 @@ class DeleteAccountService {
       // Step 1: Delete user's cart data
       await _deleteUserCart(user.uid);
 
-      // Step 2: Delete user's orders
-      await _deleteUserOrders(user.uid);
+      // Order records are intentionally NOT deleted: they are kept as
+      // business records for accounting and tax purposes, as stated in
+      // the privacy policy and the account-deletion policy page. (The
+      // Firestore rules also don't let a customer delete orders.)
 
-      // Step 3: Delete user profile data from Firestore
+      // Step 2: Delete user profile data from Firestore
       await _deleteUserProfile(user.uid);
 
-      // Step 4: Sign out from Google if logged in via Google
+      // Step 3: Sign out from Google if logged in via Google
       await _signOutFromProviders();
 
-      // Step 5: Delete Firebase Authentication account
+      // Step 4: Delete Firebase Authentication account
       await user.delete();
 
       EasyLoading.dismiss();
       
       Get.snackbar(
         "Account Deleted",
-        "Your account has been permanently deleted",
+        "Your account has been deleted",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppConstant.appMainColor,
         colorText: AppConstant.appTextColor,
@@ -117,34 +119,6 @@ class DeleteAccountService {
     } catch (e) {
       debugPrint('Error deleting cart data: $e');
       // Continue with deletion even if cart deletion fails
-    }
-  }
-
-  /// Delete all orders for the user.
-  //
-  // FIX: this used to query orders/{uid}/confirmOrders, a nested
-  // subcollection structure that doesn't match the actual current
-  // orders schema at all - orders live as flat documents directly
-  // under orders/{orderId}, filtered by a customerId field (same
-  // pattern OrderRepository uses everywhere else in the app). The old
-  // query would have matched zero documents every time, silently
-  // deleting nothing while still reporting success - a real problem
-  // in a feature specifically built for Apple's mandatory account-
-  // deletion requirement, where "deleted" needs to actually mean
-  // deleted.
-  static Future<void> _deleteUserOrders(String uid) async {
-    try {
-      final ordersSnapshot = await _firestore
-          .collection('orders')
-          .where('customerId', isEqualTo: uid)
-          .get();
-
-      for (var doc in ordersSnapshot.docs) {
-        await doc.reference.delete();
-      }
-    } catch (e) {
-      debugPrint('Error deleting orders data: $e');
-      // Continue with deletion even if orders deletion fails
     }
   }
 

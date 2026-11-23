@@ -634,7 +634,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete Account'),
         content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
+          'Are you sure you want to delete your account? Your profile, cart and sign-in will be permanently removed and this cannot be undone. Past order records are kept by Sunder Garments for accounting and tax purposes.',
         ),
         actions: [
           TextButton(
